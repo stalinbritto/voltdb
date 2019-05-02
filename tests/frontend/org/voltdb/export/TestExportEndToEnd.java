@@ -59,6 +59,24 @@ public class TestExportEndToEnd extends ExportLocalClusterBase {
             + "     b integer not null"
             + ");";
 
+    private static final String SCHEMA_2 =
+            "CREATE TABLE rep_1 ("
+            + "     a integer not null, "
+            + "     b integer not null, "
+            + "     c varchar(32) not null"
+            + ");"
+            + "CREATE table rep_2 ("
+            + "     a integer not null, "
+            + "     b integer not null, "
+            + "     c varchar(32) not null"
+            + ");"
+            + "CREATE table part_1 ("
+            + "     a integer not null, "
+            + "     b integer not null, "
+            + "     c varchar(32) not null"
+            + ");"
+            + "PARTITION TABLE part_1 on COLUMN a;";
+
     @Before
     public void setUp() throws Exception
     {
@@ -67,10 +85,11 @@ public class TestExportEndToEnd extends ExportLocalClusterBase {
 
         VoltProjectBuilder builder = null;
         builder = new VoltProjectBuilder();
-        builder.addLiteralSchema(SCHEMA);
+        builder.addLiteralSchema(SCHEMA_2);
         builder.setUseDDLSchema(true);
         builder.setPartitionDetectionEnabled(true);
         builder.setDeadHostTimeout(30);
+        builder.setQueryTimeout(100);
         // Each stream needs an exporter configuration
         builder.addExport(true /* enabled */,
                          ServerExportEnum.CUSTOM, "org.voltdb.exportclient.SocketExporter",
@@ -132,5 +151,21 @@ public class TestExportEndToEnd extends ExportLocalClusterBase {
         client.drain();
         TestExportBaseSocketExport.waitForStreamedTargetAllocatedMemoryZero(client);
         assertEquals(2, m_cluster.getLiveNodeCount());
+    }
+
+    @Test
+    public void testLongRunningQueries() throws Exception
+    {
+        Client client = getClient(m_cluster);
+        // Generate PBD files
+        for (int i = 0; i < 100000; i++) {
+            client.callProcedure("@AdHoc", "insert into rep_1 values(" + i + "," + i + "," + ("\'i"+i) + "\')");
+            client.callProcedure("@AdHoc", "insert into rep_2 values(" + i + "," + i + "," + ("\'i"+i) + "\')");
+            client.callProcedure("@AdHoc", "insert into part_1 values(" + i + "," + i + "," + ("\'i"+i) + "\')");
+        }
+        client.drain();
+        while (true) {
+            Thread.sleep(100);
+        }
     }
 }
