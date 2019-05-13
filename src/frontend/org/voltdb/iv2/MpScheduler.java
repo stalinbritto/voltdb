@@ -41,6 +41,7 @@ import org.voltdb.VoltTable;
 import org.voltdb.dtxn.TransactionState;
 import org.voltdb.exceptions.SerializableException;
 import org.voltdb.exceptions.TransactionRestartException;
+import org.voltdb.messaging.CancelReadOnlyMultiPartitionMessage;
 import org.voltdb.messaging.CompleteTransactionMessage;
 import org.voltdb.messaging.DummyTransactionTaskMessage;
 import org.voltdb.messaging.DumpMessage;
@@ -256,6 +257,9 @@ public class MpScheduler extends Scheduler
             }
             else if (message instanceof DumpMessage) {
                 // leave empty to ignore it on purpose
+            }
+            else if (message instanceof CancelReadOnlyMultiPartitionMessage) {
+
             }
             else {
                 throw new RuntimeException("UNKNOWN MESSAGE TYPE, BOOM!");

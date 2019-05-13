@@ -54,6 +54,7 @@ public class VoltDbMessageFactory extends VoltMessageFactory
     final public static byte DUMP_PLAN_ID = VOLTCORE_MESSAGE_ID_MAX + 28;
     final public static byte Migrate_Partition_Leader_MESSAGE_ID = VOLTCORE_MESSAGE_ID_MAX + 29;
     final public static byte FLUSH_RO_TXN_MESSAGE_ID = VOLTCORE_MESSAGE_ID_MAX + 30;
+    final public static byte CANCEL_RO_MP_ID = VOLTCORE_MESSAGE_ID_MAX + 31;
 
     /**
      * Overridden by subclasses to create message types unknown by voltcore

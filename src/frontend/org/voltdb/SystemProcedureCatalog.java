@@ -228,6 +228,8 @@ public class SystemProcedureCatalog {
         builder.put("@MigrateRowsDeleterNT",    new Config("org.voltdb.sysprocs.MigrateRowsDeleterNT",     true,  false, false, 0,    VoltType.INVALID,   false, false, false,     true,   false,            false,        false ));
         builder.put("@ElasticRemoveNT",         new Config("org.voltdb.sysprocs.ElasticRemoveNT",          false, false, false, 0,    VoltType.INVALID,   true,  false, true,      false,  false,            false,        false ));
         builder.put("@ElasticRemove",           new Config("org.voltdb.sysprocs.ElasticRemove",            false, false, false, 0,    VoltType.INVALID,   true,  false, false,     true,   false,            true,         true ));
+        //------------------------------------------------------------------------------------------------ SP     RO     Every  Param ParamType           PRO    killDR replica-ok durable allowedInShutdown transactional restartable
+        builder.put("@CancelMP",                  new Config(null,                                         false, false, false, 0,    VoltType.INVALID,   false, false, false,     false,  false,            true,         false ));
 
         listing = builder.build();
     }

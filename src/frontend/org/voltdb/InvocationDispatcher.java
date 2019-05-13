@@ -66,6 +66,7 @@ import org.voltdb.iv2.Cartographer;
 import org.voltdb.iv2.Iv2Trace;
 import org.voltdb.iv2.MpInitiator;
 import org.voltdb.jni.ExecutionEngine;
+import org.voltdb.messaging.CancelReadOnlyMultiPartitionMessage;
 import org.voltdb.messaging.Iv2InitiateTaskMessage;
 import org.voltdb.messaging.MigratePartitionLeaderMessage;
 import org.voltdb.messaging.MultiPartitionParticipantMessage;
@@ -468,6 +469,9 @@ public final class InvocationDispatcher {
             else if ("@JStack".equals(procName)) {
                 return dispatchJstack(task);
             }
+            else if ("@CancelMP".equals(procName)) {
+                return dispatchCancelMP(task);
+            }
 
             // ERROR MESSAGE FOR PRO SYSPROC USE IN COMMUNITY
 
@@ -689,6 +693,21 @@ public final class InvocationDispatcher {
         return gracefulFailureResponse(
                 "Failed to create the thread dump of " + ((ihid < 0) ? "all hosts." : "Host Id " + ihid + "."),
                 task.clientHandle);
+    }
+
+    private ClientResponseImpl dispatchCancelMP(StoredProcedureInvocation task) {
+        final ParameterSet ps = task.getParams();
+        final Object params[] = ps.toArray();
+        if (params.length != 1) {
+            return gracefulFailureResponse("Received wrong parameter from @CancelMP", task.clientHandle);
+        }
+        final long txnId = (long)params[0];
+        long initiatorHSId = m_cartographer.getHSIdForMultiPartitionInitiator();
+
+        CancelReadOnlyMultiPartitionMessage message = new CancelReadOnlyMultiPartitionMessage(txnId);
+        m_mailbox.send(initiatorHSId, message);
+
+        return new ClientResponseImpl(ClientResponse.SUCCESS, new VoltTable[0], "SUCCESS", task.clientHandle);
     }
 
     private final ClientResponseImpl dispatchSubscribe(InvocationClientHandler handler, StoredProcedureInvocation task) {
