@@ -469,6 +469,59 @@ CREATE TABLE taskr
 -- Custom task checks for streams with pending rows but not enabled
 CREATE TASK orphaned_tuples ON SCHEDULE EVERY 1 MINUTES PROCEDURE FROM CLASS txnIdSelfCheck.OrphanedTuples ON ERROR LOG;
 
+CREATE TABLE roworderpart
+(
+  p          bigint             NOT NULL
+, id         bigint             NOT NULL
+, value      varbinary(1048576) NOT NULL
+, CONSTRAINT PK_id_roworderpart PRIMARY KEY (p,id)
+);
+
+PARTITION TABLE roworderpart on COLUMN p;
+
+CREATE TABLE roworderrepl
+(
+  p          bigint             NOT NULL
+, id         bigint             NOT NULL
+, value      varbinary(1048576) NOT NULL
+);
+
+CREATE TABLE rowordercopypart
+(
+  p          bigint             NOT NULL
+, id         bigint             NOT NULL
+, value      varbinary(1048576) NOT NULL
+);
+PARTITION TABLE rowordercopypart on COLUMN p;
+
+CREATE TABLE rowordercopyrepl
+(
+  p          bigint             NOT NULL
+, id         bigint             NOT NULL
+, value      varbinary(1048576) NOT NULL
+);
+
+CREATE VIEW roworderviewpart (
+    p,
+    id,
+    value
+) AS SELECT
+    p,
+    min(id),
+    min(value)
+FROM roworderpart group by p;
+
+CREATE VIEW roworderviewrepl (
+    p,
+    id,
+    value
+) AS SELECT
+    p,
+    min(id),
+    min(value)
+FROM roworderrepl group by p;
+
+
 -- base procedures you shouldn't call
 CREATE PROCEDURE FROM CLASS txnIdSelfCheck.procedures.UpdateBaseProc;
 CREATE PROCEDURE FROM CLASS txnIdSelfCheck.procedures.ReplicatedUpdateBaseProc;
@@ -539,6 +592,15 @@ CREATE PROCEDURE deleteSomeR AS DELETE FROM taskr WHERE ts < DATEADD(SECOND, ?, 
 CREATE FUNCTION add2Bigint    FROM METHOD txnIdSelfCheck.procedures.udfs.add2Bigint;
 CREATE FUNCTION identityVarbin    FROM METHOD txnIdSelfCheck.procedures.udfs.identityVarbin;
 CREATE FUNCTION excUDF    FROM METHOD txnIdSelfCheck.procedures.udfs.badUDF;
+
+-- procedures for deterministic row order
+CREATE PROCEDURE PARTITION ON TABLE roworderpart COLUMN p FROM CLASS txnIdSelfCheck.procedures.ROWORDERPTableInsert;
+CREATE PROCEDURE FROM CLASS txnIdSelfCheck.procedures.ROWORDERRTableInsert;
+CREATE PROCEDURE FROM CLASS txnIdSelfCheck.procedures.ROWORDERPTruncateTableMP;
+CREATE PROCEDURE FROM CLASS txnIdSelfCheck.procedures.ROWORDERRTruncateTableSP;
+
+--CREATE PROCEDURE FROM CLASS txnIdSelfCheck.procedures.TRUPSwapTablesMP;
+--CREATE PROCEDURE FROM CLASS txnIdSelfCheck.procedures.TRURSwapTables;
 
 END_OF_BATCH
 -- tasks

@@ -159,17 +159,17 @@ public class Benchmark {
 
         @Option(desc = "Allow disabling different threads for testing specific functionality. ")
         String disabledthreads = "none";
-        //threads: "clients,partBiglt,replBiglt,partTrunclt,replTrunclt,partCappedlt,replCappedlt,partLoadlt,replLoadlt,readThread,adHocMayhemThread,idpt,updateclasses,partNDlt,replNDlt"
+        //threads: "clients,partBiglt,replBiglt,partTrunclt,replTrunclt,partCappedlt,replCappedlt,partLoadlt,replLoadlt,readThread,adHocMayhemThread,idpt,updateclasses,partNDlt,replNDlt,partRowOrderlt,replRowOrderlt"
         // Biglt,Trunclt,Cappedlt,Loadlt are also recognized and apply to BOTH part and repl threads
         ArrayList<String> disabledThreads = null;
 
         @Option(desc = "Allow enabling specific threads. ")
         String enabledthreads = "all";
-        //threads: "clients,partBiglt,replBiglt,partTrunclt,replTrunclt,partCappedlt,replCappedlt,partLoadlt,replLoadlt,readThread,adHocMayhemThread,idpt,updateclasses,partNDlt,replNDlt"
+        //threads: "clients,partBiglt,replBiglt,partTrunclt,replTrunclt,partCappedlt,replCappedlt,partLoadlt,replLoadlt,readThread,adHocMayhemThread,idpt,updateclasses,partNDlt,replNDlt,partRowOrderlt,replRowOrderlt"
         // Biglt,Trunclt,Cappedlt,Loadlt are also recognized and apply to BOTH part and repl threads
         ArrayList<String> enabledThreads = null;
 
-        ArrayList<String> allThreads = new ArrayList<String>(Arrays.asList("clients,partBiglt,replBiglt,partTrunclt,replTrunclt,partCappedlt,replCappedlt,partLoadlt,replLoadlt,readThread,adHocMayhemThread,idpt,updateclasses,partNDlt,replNDlt,partttlMigratelt,replttlMigratelt,partTasklt,replTasklt".split(",")));
+        ArrayList<String> allThreads = new ArrayList<String>(Arrays.asList("clients,partBiglt,replBiglt,partTrunclt,replTrunclt,partCappedlt,replCappedlt,partLoadlt,replLoadlt,readThread,adHocMayhemThread,idpt,updateclasses,partNDlt,replNDlt,partttlMigratelt,replttlMigratelt,partTasklt,replTasklt,partRowOrderlt,replRowOrderlt".split(",")));
 
         @Option(desc = "Enable topology awareness")
         boolean topologyaware = false;
@@ -592,6 +592,9 @@ public class Benchmark {
     TTLLoader replttlMigratelt = null;
     TaskLoader replTasklt = null;
     TaskLoader partTasklt = null;
+    RowOrderTableLoader partRowOrderlt = null;
+    RowOrderTableLoader replRowOrderlt = null;
+
 
     /**
      * Core benchmark code.
@@ -863,6 +866,19 @@ public class Benchmark {
             hashmismatchthread.start();
         }
 
+        partRowOrderlt = null;
+        if (! config.disabledThreads.contains("partRowOrderlt") ) {
+            partRowOrderlt = new RowOrderTableLoader(client, "roworderpart","rowordercopypart","roworderviewpart",
+                    (config.partfillerrowmb * 1024 * 1024) / config.fillerrowsize, config.fillerrowsize, 50, permits, config.mpratio, config.swapratio);
+            partRowOrderlt.start();
+        }
+
+        replRowOrderlt = null;
+        if (! config.disabledThreads.contains("replRowOrderlt")) {
+            replRowOrderlt = new RowOrderTableLoader(client, "roworderrepl","rowordercopyrepl","roworderviewrepl",
+                    (config.replfillerrowmb * 1024 * 1024) / config.fillerrowsize, config.fillerrowsize, 3, permits, config.mpratio, config.swapratio);
+            replRowOrderlt.start();
+        }
 
         log.info("All threads started...");
 
@@ -923,6 +939,10 @@ public class Benchmark {
                         exitcode += reportDeadThread(ct);
                     }
                 }
+                if (partRowOrderlt != null && !partRowOrderlt.isAlive())
+                    exitcode += reportDeadThread(partRowOrderlt);
+                if (replRowOrderlt != null && !replRowOrderlt.isAlive())
+                    exitcode += reportDeadThread(replRowOrderlt);
                 /*
                 replBiglt.shutdown();
                 partBiglt.shutdown();
