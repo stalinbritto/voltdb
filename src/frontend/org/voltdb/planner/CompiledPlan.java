@@ -233,6 +233,7 @@ public class CompiledPlan {
         }
 
         PlanNodeList planList = new PlanNodeList(planGraph, isLargeQuery);
+        System.err.println("PlanList " + planList +  " for " + planGraph);
         return planList.toJSONString().getBytes(Constants.UTF8ENCODING);
     }
 

@@ -378,7 +378,10 @@ public class PlannerTool {
                 //////////////////////
                 // OUTPUT THE RESULT
                 //////////////////////
+
                 final CorePlan core = new CorePlan(plan, m_catalogHash);
+                System.err.println("CompiledPlan " + plan.toJSONString());
+                System.err.println("CorePlan " + core);
                 final AdHocPlannedStatement ahps = new AdHocPlannedStatement(plan, core);
 
                 // Do not put wrong parameter explain query into cache.
