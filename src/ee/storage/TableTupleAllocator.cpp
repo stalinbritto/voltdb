@@ -1615,7 +1615,14 @@ template<typename Chunks, typename Tag, typename E>
 template<typename Trans, iterator_permission_type perm>
 inline typename IterableTableTupleChunks<Chunks, Tag, E>::template iterator_cb_type<Trans, perm>::value_type
 IterableTableTupleChunks<Chunks, Tag, E>::iterator_cb_type<Trans, perm>::operator*() noexcept {
-    return const_cast<void*>(m_cb(super::operator*()));
+    auto *super_value = const_cast<void*>(super::operator*()), *ret_value = const_cast<void*> (m_cb(super_value));
+    if (super_value != ret_value) {
+        char errMsg[1024];
+        snprintf(errMsg, sizeof errMsg, "snapshot iterator at txn addr %p, reads %p", super_value, ret_value);
+        errMsg[sizeof errMsg - 1] = '\0';
+        LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, errMsg);
+    }
+    return (ret_value);
 }
 
 template<typename Chunks, typename Tag, typename E>

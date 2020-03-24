@@ -34,6 +34,7 @@
 #include <stx/btree_map>
 #include <stx/btree_set>
 #include "common/ThreadLocalPool.h"
+#include "logging/LogManager.h"
 
 namespace voltdb {
     namespace storage {

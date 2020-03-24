@@ -624,6 +624,11 @@ void PersistentTable::finalizeRelease() {
         for(auto const& p : tuples) {
            target.move(p.first);
            origin.move(p.second);
+           std::ostringstream buffer;
+           buffer << "MOVE: " << origin.debug(this->name()).c_str() << " DETAIL:" <<
+           this->allocator().info(p.second) << " ==> TO:" << target.debug(this->name()).c_str() << " DETAIL: " <<
+           this->allocator().info(p.first) << std::endl;
+           LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
            swapTuples(origin, target);
         }
     });
@@ -1801,6 +1806,10 @@ bool PersistentTable::nextSnapshotTuple(TableTuple& tuple, TableStreamType strea
        }
        auto *p = **m_snapIt;
        tuple.move(const_cast<void*>(reinterpret_cast<const void*>(p)));
+       std::ostringstream buffer;
+       buffer << "SNAP: " << tuple.debug(this->name()).c_str() << " DETAIL:" <<
+       allocator().info(p) << std::endl;
+       LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
        ++*m_snapIt;
     } else if (streamType == TABLE_STREAM_ELASTIC_INDEX) {
        if (m_elasticIt->drained()) {
