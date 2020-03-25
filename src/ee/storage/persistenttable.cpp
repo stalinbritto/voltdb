@@ -622,6 +622,7 @@ void PersistentTable::finalizeRelease() {
     TableTuple origin(m_schema);
     allocator().remove_force([this, &target, &origin](vector<pair<void*, void*>> const& tuples) {
         for(auto const& p : tuples) {
+           ::memcpy(p.first, p.second, m_tupleLength);
            target.move(p.first);
            origin.move(p.second);
            swapTuples(origin, target);
@@ -1723,7 +1724,7 @@ size_t PersistentTable::hashCode() {
 
 void PersistentTable::swapTuples(TableTuple& originalTuple,
                                  TableTuple& destinationTuple) {
-    ::memcpy(destinationTuple.address(), originalTuple.address(), m_tupleLength);
+//    ::memcpy(destinationTuple.address(), originalTuple.address(), m_tupleLength);
     vassert(!originalTuple.isPendingDeleteOnUndoRelease());
 
     BOOST_FOREACH (auto index, m_indexes) {
