@@ -1741,9 +1741,7 @@ void PersistentTable::swapTuples(TableTuple& originalTuple,
         m_tableStreamer->notifyTupleMovement(originalTuple, destinationTuple);
     }
     std::ostringstream buffer;
-    buffer << "MOVE: " << originalTuple.debug(name()).c_str() << " DETAIL:" <<
-    allocator().info(originalTuple.address()) << " ==> TO:" << destinationTuple.debug(name()).c_str() << " DETAIL: " <<
-    allocator().info(destinationTuple.address()) << std::endl;
+    buffer << "MOVE: " << originalTuple.debug(name()).c_str() << " ==> TO:" << destinationTuple.debug(name()).c_str()  << std::endl;
     LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
 }
 
