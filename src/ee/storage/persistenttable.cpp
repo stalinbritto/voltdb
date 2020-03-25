@@ -613,6 +613,9 @@ TableTuple PersistentTable::createTuple(TableTuple const &source){
     void *address = const_cast<void*>(reinterpret_cast<void const *> (allocator().allocate()));
     target.move(address);
     target.copyForPersistentInsert(source);
+    std::ostringstream buffer;
+    buffer << "CREATE: " << target.debug(name()).c_str() << std::endl;
+    LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
     return target;
 }
 
@@ -815,6 +818,10 @@ void PersistentTable::updateTupleWithSpecificIndexes(
     UndoQuantum* uq = NULL;
     char* oldTupleData = NULL;
     ExecutorContext* ec = ExecutorContext::getExecutorContext();
+
+    std::ostringstream buf;
+    buf << "UPDATE: " << targetTupleToUpdate.debug(name()).c_str() << std::endl;
+    LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buf.str().c_str());
 
     /**
      * Check for index constraint violations.
@@ -1212,6 +1219,10 @@ void PersistentTable::deleteTupleRelease(char* tuple) {
     if (m_tableStreamer != NULL) {
         m_tableStreamer->notifyTupleDelete(target);
     }
+
+    std::ostringstream buf;
+    buf << "DELETE: " << target.debug(name()).c_str() << std::endl;
+    LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buf.str().c_str());
 
     // Reserve batch delete, only once
     if (m_batchDeleteTupleCount > 0) {
