@@ -1799,10 +1799,6 @@ bool PersistentTable::nextSnapshotTuple(TableTuple& tuple, TableStreamType strea
        }
        auto *p = **m_snapIt;
        tuple.move(const_cast<void*>(reinterpret_cast<const void*>(p)));
-       std::ostringstream buffer;
-       buffer << "SNAP: " << tuple.debug(this->name()).c_str() << " DETAIL:" <<
-       allocator().info(p) << std::endl;
-       LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
        ++*m_snapIt;
     } else if (streamType == TABLE_STREAM_ELASTIC_INDEX) {
        if (m_elasticIt->drained()) {
