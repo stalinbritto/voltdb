@@ -624,11 +624,6 @@ void PersistentTable::finalizeRelease() {
         for(auto const& p : tuples) {
            target.move(p.first);
            origin.move(p.second);
-           std::ostringstream buffer;
-           buffer << "MOVE: " << origin.debug(this->name()).c_str() << " DETAIL:" <<
-           this->allocator().info(p.second) << " ==> TO:" << target.debug(this->name()).c_str() << " DETAIL: " <<
-           this->allocator().info(p.first) << std::endl;
-           LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
            swapTuples(origin, target);
         }
     });
@@ -1744,6 +1739,11 @@ void PersistentTable::swapTuples(TableTuple& originalTuple,
     if (m_tableStreamer != NULL) {
         m_tableStreamer->notifyTupleMovement(originalTuple, destinationTuple);
     }
+    std::ostringstream buffer;
+    buffer << "MOVE: " << originalTuple.debug(name()).c_str() << " DETAIL:" <<
+    allocator().info(originalTuple.address()) << " ==> TO:" << destinationTuple.debug(name()).c_str() << " DETAIL: " <<
+    allocator().info(destinationTuple.address()) << std::endl;
+    LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
 }
 
 int64_t PersistentTable::validatePartitioning(TheHashinator* hashinator, int32_t partitionId) {
