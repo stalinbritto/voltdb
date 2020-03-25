@@ -143,11 +143,14 @@ int64_t CopyOnWriteContext::handleStreamMore(TupleOutputStreamProcessor &outputS
                    m_tuplesRemaining = 0;
                 }
                 bool deleteTuple = false;
+                std::ostringstream buf;
+                buf << "SNAP@" << static_cast<const void*>(tuple.address()) << std::endl;
+                LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buf.str().c_str());
                 std::ostringstream buffer;
                 buffer << "SNAP: " << tuple.debug(getTable().name()).c_str() << std::endl;
                 LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
                 yield = outputStreams.writeRow(tuple, m_hiddenColumnFilter, &deleteTuple);
-                LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, ":::SNAP-WRITE:::");
+                LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buf.str().c_str());
             }
         }
     }
