@@ -622,8 +622,12 @@ void PersistentTable::finalizeRelease() {
     TableTuple origin(m_schema);
     allocator().remove_force([this, &target, &origin](vector<pair<void*, void*>> const& tuples) {
         for(auto const& p : tuples) {
+           ::memcpy(p.first, p.second, m_tupleLength);
            target.move(p.first);
            origin.move(p.second);
+           std::ostringstream buffer;
+           buffer << "MOVE: " << origin.debug(name()).c_str() << " ==> TO:" << target.debug(name()).c_str()  << std::endl;
+           LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
            swapTuples(origin, target);
         }
     });
@@ -1222,6 +1226,9 @@ void PersistentTable::deleteTupleRelease(char* tuple) {
             TableTuple src(m_schema);
             src.move(const_cast<void*>(e.copy_of()));
             target.copyNonInlinedColumnObjects(src);
+            std::ostringstream buffer;
+            buffer << "DELETE COPY SRC: " << src.debug("").c_str() << " COPIED:" << target.debug("").c_str() << std::endl;
+            LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
         }
     }
 }
@@ -1715,7 +1722,6 @@ size_t PersistentTable::hashCode() {
 
 void PersistentTable::swapTuples(TableTuple& originalTuple,
                                  TableTuple& destinationTuple) {
-    ::memcpy(destinationTuple.address(), originalTuple.address(), m_tupleLength);
     vassert(!originalTuple.isPendingDeleteOnUndoRelease());
 
     BOOST_FOREACH (auto index, m_indexes) {
@@ -1731,9 +1737,6 @@ void PersistentTable::swapTuples(TableTuple& originalTuple,
     if (m_tableStreamer != NULL) {
         m_tableStreamer->notifyTupleMovement(originalTuple, destinationTuple);
     }
-    std::ostringstream buffer;
-    buffer << "MOVE: " << originalTuple.debug(name()).c_str() << " ==> TO:" << destinationTuple.debug(name()).c_str()  << std::endl;
-    LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
 }
 
 int64_t PersistentTable::validatePartitioning(TheHashinator* hashinator, int32_t partitionId) {
