@@ -1660,8 +1660,6 @@ IterableTableTupleChunks<Chunks, Tag, E>::iterator_cb_type<Trans, perm>::operato
         errMsg[sizeof errMsg - 1] = '\0';
         LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, errMsg);
     }
-    constexpr static TxnWriteBarrier<Chunks> const barrier{};
-    barrier(super::storage());
     return (ret_value);
 }
 
