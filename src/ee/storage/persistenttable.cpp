@@ -123,6 +123,9 @@ void PersistentTable::initializeWithColumns(TupleSchema* schema,
         auto const cleaner = [this] (void const* p) noexcept {
             TableTuple tuple(this->m_schema);
             tuple.move(const_cast<void*>(p));
+            std::ostringstream buffer;
+            buffer << "DELETE Callback: " << tuple.debug(this->name()).c_str() << std::endl;
+            LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
             this->decreaseStringMemCount(tuple.getNonInlinedMemorySizeForPersistentTable());
             tuple.freeObjectColumns();
         };
@@ -1791,6 +1794,9 @@ void PersistentTable::activateSnapshot(TableStreamType streamType) {
        vassert(m_snapIt.get() == nullptr);
        m_snapIt = allocator().template freeze<storage::truth>();
        m_snapshotStarted = true;
+       std::ostringstream buffer;
+       buffer << "SNAPSHOT ACTIVATED***" << std::endl;
+       LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
    } else if (streamType == TABLE_STREAM_ELASTIC_INDEX) {
        m_elasticIt = std::make_shared<ElasticIndexIterator>(allocator());
    }
@@ -1803,6 +1809,9 @@ void PersistentTable::stopSnapshot() {
          ExecuteWithMpMemory useMpMemory;
          allocator().template thaw<storage::truth>();
          m_snapIt.reset();
+         std::ostringstream buffer;
+         buffer << "SNAPSHOT STOPPED***" << std::endl;
+         LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
       } else {
          allocator().template thaw<storage::truth>();
          m_snapIt.reset();
