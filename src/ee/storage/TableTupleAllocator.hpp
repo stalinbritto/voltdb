@@ -34,7 +34,6 @@
 #include <stx/btree_map>
 #include <stx/btree_set>
 #include "common/ThreadLocalPool.h"
-#include "logging/LogManager.h"
 
 namespace voltdb {
     namespace storage {
@@ -367,8 +366,8 @@ namespace voltdb {
         protected:
             id_type& lastChunkId();
             template<typename Pred> void remove_if(Pred p);
-            typename super::iterator& last() noexcept;
         public:
+            typename super::iterator& last() noexcept;
             using collections = Collections<collections_type>;
             using iterator = typename super::iterator;
             using const_iterator = typename super::const_iterator;
@@ -652,7 +651,6 @@ namespace voltdb {
                 bool empty() const noexcept;
             } m_batched;
             size_t m_allocs = 0;
-            using list_type::last;
             template<typename Remove_cb> void clear(Remove_cb const&);
             pair<bool, list_type::iterator> find(void const*, bool) noexcept; // search in txn invisible range, too
             pair<bool, list_type::iterator> find(id_type, bool) noexcept; // search in txn invisible range, too
@@ -672,7 +670,7 @@ namespace voltdb {
             using list_type::tupleSize; using list_type::chunkSize;
             using list_type::begin; using list_type::end;
             using CompactingStorageTrait::frozen;
-
+            using list_type::front; using list_type::last;
             // search in txn memory region (i.e. excludes snapshot-related, front portion of list)
             pair<bool, list_type::iterator> find(void const*) noexcept;
             pair<bool, list_type::iterator> find(id_type) noexcept;
@@ -791,6 +789,10 @@ namespace voltdb {
             TxnPreHook(TxnPreHook&&) = delete;
             TxnPreHook& operator=(TxnPreHook const&) = delete;
             ~TxnPreHook();
+            size_t map_entries() const noexcept {
+                return m_changes.size();
+            }
+            string map_keys() const noexcept;
             void freeze();
             void thaw();
             struct added_entry_t {
