@@ -235,6 +235,7 @@ namespace voltdb {
             void*const range_next() const noexcept;
             size_t tupleSize() const noexcept;
             id_type id() const noexcept;
+            string info() const noexcept;
             allocator_type<T>& get_allocator() noexcept;
             allocator_type<T> const& get_allocator() const noexcept;
         };
@@ -326,7 +327,7 @@ namespace voltdb {
             ChunkListIdSeeker() = default;
             iterator emplace(id_type, Iter const&);
             size_t erase(id_type);
-            iterator find(id_type);
+            iterator find(id_type) const;
             Iter& get(iterator const&);
             using super::end; using super::clear;
         };
@@ -653,8 +654,8 @@ namespace voltdb {
             size_t m_allocs = 0;
             template<typename Remove_cb> void clear(Remove_cb const&);
             pair<bool, list_type::iterator> find(void const*, bool) noexcept; // search in txn invisible range, too
-            pair<bool, list_type::iterator> find(id_type, bool) noexcept; // search in txn invisible range, too
         public:
+            pair<bool, list_type::iterator> find(id_type, bool) const noexcept; // search in txn invisible range, too
             // for use in HookedCompactingChunks::remove() [batch mode]:
             CompactingChunks(size_t tupleSize) noexcept;
             CompactingChunks(size_t tupleSize, function<void(void const*)> const&) noexcept;
