@@ -1134,7 +1134,7 @@ inline void TableTuple::serializeTo(voltdb::SerializeOutput &output, const Hidde
     for (int j = 0; j < m_schema->columnCount(); ++j) {
         NValue value = getNValue(j);
         const TupleSchema::ColumnInfo *columnInfo = m_schema->getColumnInfo(j);
-        value.serializeTo(output, columnInfo->inlined, columnInfo->length, olumnInfo->inBytes);
+        value.serializeTo(output, columnInfo->inlined, columnInfo->length, columnInfo->inBytes);
     }
 
     if (filter) {
