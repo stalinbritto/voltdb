@@ -1240,7 +1240,7 @@ void PersistentTable::deleteTupleRelease(char* tuple) {
         if (e.copy_of() != nullptr) {
             TableTuple src(m_schema);
             src.move(const_cast<void*>(e.copy_of()));
-            target.copyNonInlinedColumnObjects(src);
+            src.copyNonInlinedColumnObjects(target);
             std::ostringstream buffer;
             buffer << "DELETE COPY SRC: " << src.debug("").c_str() << " COPIED:" << target.debug("").c_str() << std::endl;
             LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());

@@ -182,7 +182,7 @@ void CopyOnWriteContext::notifyTupleUpdate(TableTuple &tuple) {
         if (e.copy_of() != nullptr) {
             TableTuple copied(tuple.m_schema);
             copied.move(const_cast<void*>(e.copy_of()));
-            tuple.copyNonInlinedColumnObjects(copied);
+            copied.copyNonInlinedColumnObjects(tuple);
             std::ostringstream buffer;
             buffer << "UPDATE COPY SRC: " << tuple.debug("").c_str() << " COPIED:" << copied.debug("").c_str() << std::endl;
             LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
