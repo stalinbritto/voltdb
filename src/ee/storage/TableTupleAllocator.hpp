@@ -237,7 +237,6 @@ namespace voltdb {
             id_type id() const noexcept;
             allocator_type<T>& get_allocator() noexcept;
             allocator_type<T> const& get_allocator() const noexcept;
-            string info() const noexcept;
         };
 
         /**
@@ -653,9 +652,9 @@ namespace voltdb {
             } m_batched;
             size_t m_allocs = 0;
             template<typename Remove_cb> void clear(Remove_cb const&);
-        public:
             pair<bool, list_type::iterator> find(void const*, bool) noexcept; // search in txn invisible range, too
             pair<bool, list_type::iterator> find(id_type, bool) noexcept; // search in txn invisible range, too
+        public:
             // for use in HookedCompactingChunks::remove() [batch mode]:
             CompactingChunks(size_t tupleSize) noexcept;
             CompactingChunks(size_t tupleSize, function<void(void const*)> const&) noexcept;
