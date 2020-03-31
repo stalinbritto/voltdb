@@ -1135,6 +1135,10 @@ inline void TableTuple::serializeTo(voltdb::SerializeOutput &output, const Hidde
         //int fieldStart = output.position();
         NValue value = getNValue(j);
         value.serializeTo(output);
+        const TupleSchema::ColumnInfo *columnInfo = m_schema->getColumnInfo(j);
+        bool isInBytes = columnInfo->inBytes;
+        int32_t columnLength = columnInfo->length;
+        value.serializeTo(output, true, columnLength, isInBytes);
     }
 
     if (filter) {
