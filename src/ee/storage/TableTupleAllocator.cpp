@@ -1646,24 +1646,17 @@ inline typename IterableTableTupleChunks<Chunks, Tag, E>::template iterator_cb_t
 IterableTableTupleChunks<Chunks, Tag, E>::iterator_cb_type<Trans, perm>::operator*() noexcept {
     auto* orig = super::operator*();
     auto* trans = m_cb(orig);
-    auto& c = const_cast<HookedCompactingChunks<
-        TxnPreHook<NonCompactingChunks<LazyNonCompactingChunk>, HistoryRetainTrait<gc_policy::batched>>>&>(
-                reinterpret_cast<HookedCompactingChunks<
-                TxnPreHook<NonCompactingChunks<LazyNonCompactingChunk>, HistoryRetainTrait<gc_policy::batched>>> const&>(
-                    super::storage()));
+    auto const& c = reinterpret_cast<HookedCompactingChunks<
+        TxnPreHook<NonCompactingChunks<LazyNonCompactingChunk>, HistoryRetainTrait<gc_policy::batched>>> const&>(
+                super::storage());
     ostringstream oss;
     oss << info_hdr();
     oss << "sn-iterator(" << orig;
     if (trans != orig) {
        oss << " => " << trans;
     }
-    auto const& found = c.find(orig, false);
-    assert(found.first);
-    assert(iterator != end());
-    oss << " [" << found.second->id() << ": begins @" << found.second->range_begin()
-        << ", ends @" << found.second->range_end() << ", next @" << found.second->range_next() << "]"
-        << "), m_changes has "
-        << c.map_entries() << " entries: " << c.map_keys();
+    oss << "), m_changes has " << c.map_entries() << " entries: " << c.map_keys() << endl;
+//    oss << c.info(orig) << endl;
     LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, oss.str().c_str());
     return const_cast<void*>(trans);
 }
@@ -1680,7 +1673,7 @@ inline position_type::position_type(CompactingChunks const& c, void const* p) : 
     // search in "global" region, which also includes txn-invisible region if frozen.
     auto const iter = const_cast<CompactingChunks&>(c).find(p, true);
     if (! iter.first) {
-        snprintf(buf, sizeof buf, "position_type::position_type(): cannot find address %p", p);
+        snprintf(buf, sizeof buf, "position_type::position_type(): cannot find address %p\n", p);
         buf[sizeof buf - 1] = 0;
         throw range_error(buf);
     }
@@ -1894,7 +1887,7 @@ typename TxnPreHook<Alloc, Trait, E1>::added_entry_t TxnPreHook<Alloc, Trait, E1
     auto status = added_entry_t::status::not_frozen;
     ostringstream oss;
     oss << info_hdr();
-    oss << " Upon add() call: entries: " << map_keys() << " ";
+    oss << " Upon add() call: entries: " << map_keys() << endl;
     if (m_recording && added_entry_t::status::fresh ==
             (status = obs(dst) ? added_entry_t::status::ignored : added_entry_t::status::fresh)) {
         void const* r;
@@ -1909,7 +1902,7 @@ typename TxnPreHook<Alloc, Trait, E1>::added_entry_t TxnPreHook<Alloc, Trait, E1
         if (r == nullptr) {    // copy already exists
             vassert(m_changes.find(dst) != m_changes.cend());
             oss << "hook::add() " << (type == ChangeType::Update ? "updated" : "removed")
-                << ": w. existing entry " << dst << " => " << m_changes.find(dst)->second;
+                << ": w. existing entry " << dst << " => " << m_changes.find(dst)->second << endl;
             LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, oss.str().c_str());
             return {added_entry_t::status::existing, m_changes.find(dst)->second};
         } else {               // freshly created copy
@@ -1918,7 +1911,7 @@ typename TxnPreHook<Alloc, Trait, E1>::added_entry_t TxnPreHook<Alloc, Trait, E1
             oss << "hook::add() " << (type == ChangeType::Update ? "updated" : "removed")
                 << ": adding fresh entry "
                 << dst << " => " << r << ", map @" << &m_changes << " has " << m_changes.size()
-                << " entries: " << map_keys();
+                << " entries: " << map_keys() << endl;
             LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, oss.str().c_str());
             return {status, r};
         }
@@ -1927,12 +1920,12 @@ typename TxnPreHook<Alloc, Trait, E1>::added_entry_t TxnPreHook<Alloc, Trait, E1
         // copy of its original value
         auto const& iter = m_changes.find(dst);
         oss << "deliberately ignoring " <<
-            (type == ChangeType::Update ? "updated " : "removed ") << " even though frozen";
+            (type == ChangeType::Update ? "updated " : "removed ") << " even though frozen" << endl;
         LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, oss.str().c_str());
         return {status, iter == m_changes.cend() ? nullptr : iter->second};
     } else {                   // not frozen
         oss << "ignoring " <<
-            (type == ChangeType::Update ? "updated " : "removed ") << " since not frozen";
+            (type == ChangeType::Update ? "updated " : "removed ") << " since not frozen" << endl;
         LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, oss.str().c_str());
         return {};
     }
@@ -2025,7 +2018,7 @@ template<typename Hook, typename E> inline void* HookedCompactingChunks<Hook, E>
     ostringstream oss;
     oss << info_hdr();
     oss << "allocate(" << r << ") called on allocator#" << id() <<
-        " => chunk id=" << last()->id() << ", alloc-size = " << size();
+        " => chunk id=" << last()->id() << ", alloc-size = " << size() << endl;
     LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, oss.str().c_str());
     return r;
 }
@@ -2071,7 +2064,7 @@ HookedCompactingChunks<Hook, E>::update(void* dst) {
     ostringstream oss;
     oss << info_hdr();
     oss << "update(" << dst << ") called on allocator#" << id() << ": " <<
-        (frozen() ? "frozen" : "not frozen");
+        (frozen() ? "frozen" : "not frozen") << endl;
     LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, oss.str().c_str());
     VOLT_TRACE("update(%p)", dst);
     return Hook::add(Hook::ChangeType::Update, dst,
@@ -2089,25 +2082,14 @@ HookedCompactingChunks<Hook, E>::freeze() {
     // placement new for type erasure. Note that dtor cannot be
     // called explicitly in thaw.
     new (&m_iterator_observer) observer_type<Tag>(ptr);
-    auto const& found_left = find(frozenBoundaries().left().chunkId(), false),
-         &found_right = find(frozenBoundaries().right().chunkId(), false);
-    assert(found_left.first);
-    assert(found_right.first);
-    assert(iterator != end());
     ostringstream oss;
     oss << info_hdr();
     oss << "freeze() on allocator#" << id() <<
         ": boundaries are: left = (id = " <<
         frozenBoundaries().left().chunkId() << ", next = " <<
-        frozenBoundaries().left().address() <<
-        " [" << found_left.second->id() << ": begins @" << found_left.second->range_begin()
-        << ", ends @" << found_left.second->range_end() << ", next @" << found_left.second->range_next() << "]"
-        << "), right = (id = " <<
+        frozenBoundaries().left().address() << "), right = (id = " <<
         frozenBoundaries().right().chunkId() << ", next = " <<
-        frozenBoundaries().right().address() <<
-        " [" << found_right.second->id() << ": begins @" << found_right.second->range_begin()
-        << ", ends @" << found_right.second->range_end() << ", next @" << found_right.second->range_next() << "]"
-        << ")";
+        frozenBoundaries().right().address() << ")\n";
     LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, oss.str().c_str());
     return ptr;
 }
@@ -2121,18 +2103,18 @@ template<typename Tag> inline void HookedCompactingChunks<Hook, E>::thaw() {
         frozenBoundaries().left().chunkId() << ", next = " <<
         frozenBoundaries().left().address() << "), right = (id = " <<
         frozenBoundaries().right().chunkId() << ", next = " <<
-        frozenBoundaries().right().address() << ") " << "txn";
+        frozenBoundaries().right().address() << ")\n" << "txn";
     Hook::thaw();
     CompactingChunks::thaw();
     reinterpret_cast<observer_type<Tag>&>(m_iterator_observer).reset();
     if (empty()) {
-        oss << " is empty now";
+        oss << " is empty now\n";
     } else {
         oss << " boundaries are: left = (id = " <<
             CompactingChunks::front().id() << ", next = " <<
             CompactingChunks::front().range_next() << "), right = (id=" <<
             CompactingChunks::last()->id() << ", next = " <<
-            CompactingChunks::last()->range_next() << ")";
+            CompactingChunks::last()->range_next() << ")\n";
     }
     LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, oss.str().c_str());
 }
@@ -2144,15 +2126,15 @@ HookedCompactingChunks<Hook, E>::remove_add(void* p) {
     ostringstream oss;
     oss << info_hdr();
     oss << "remove_add(" << p << ") on allocator#" << id() << ": " <<
-        (frozen() ? "frozen" : "not frozen");
+        (frozen() ? "frozen" : "not frozen") << endl;
     if (frozen()) {            // hook registration
         Hook::copy(p);
-        oss << "Pre calling Hook::add(" << p << ")";
+        oss << "Pre calling Hook::add(" << p << ")" << endl;
         LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, oss.str().c_str());
         return Hook::add(Hook::ChangeType::Deletion, p,
                 reinterpret_cast<observer_type<Tag>&>(m_iterator_observer));
     } else {
-        oss << "remove_add(" << p << ") NOT FROZEN";
+        oss << "remove_add(" << p << ") NOT FROZEN" << endl;
         LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, oss.str().c_str());
         return {Hook::added_entry_t::status::not_frozen, nullptr};
     }
@@ -2174,18 +2156,18 @@ HookedCompactingChunks<Hook, E>::remove_force(
             CompactingChunks::m_batched.removed().cend(),
             [&oss] (void* s) noexcept { oss << s << ", "; });
     oss.seekp(-2, ios_base::end);
-    oss << " [moved]: ";
+    oss << "\n[moved]: ";
     for_each(CompactingChunks::m_batched.movements().cbegin(),
             CompactingChunks::m_batched.movements().cend(),
             [&oss] (pair<void*, void*> const& s) noexcept {
             oss << s.first << " <- " << s.second << ", ";
             });
     oss.seekp(-2, ios_base::end);
-    oss << ") ";
+    oss << ")\n";
     VOLT_TRACE("%s", oss.str().c_str());
     cb(CompactingChunks::m_batched.movements());    // NOTE: memcpy before the call back
     auto const n = CompactingChunks::m_batched.force();
-    oss << "remove_force(" << n << ")" << (frozen() ? "frozen" : "not frozen");
+    oss << "remove_force(" << n << ")" << (frozen() ? "frozen" : "not frozen") << endl;
     LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, oss.str().c_str());
     return n;
 }
@@ -2194,7 +2176,7 @@ template<typename Hook, typename E> inline string HookedCompactingChunks<Hook, E
     auto* mutable_this = const_cast<HookedCompactingChunks<Hook, E>*>(this);
     auto const iterp = mutable_this->find(p, true);
     if (! iterp.first) {
-        snprintf(buf, sizeof buf, "Cannot find address %p", p);
+        snprintf(buf, sizeof buf, "Cannot find address %p\n", p);
         buf[sizeof buf - 1] = 0;
         return buf;
     } else {
