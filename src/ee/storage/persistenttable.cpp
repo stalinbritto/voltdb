@@ -1791,7 +1791,9 @@ int64_t PersistentTable::validatePartitioning(TheHashinator* hashinator, int32_t
 
 void PersistentTable::activateSnapshot(TableStreamType streamType) {
    if (streamType == TABLE_STREAM_SNAPSHOT) {
-       vassert(m_snapIt.get() == nullptr);
+       if (m_snapIt.get() != nullptr) {
+           stopSnapshot(true);
+       }
        m_snapIt = allocator().template freeze<storage::truth>();
        m_snapshotStarted = true;
        std::ostringstream buffer;
@@ -1802,8 +1804,8 @@ void PersistentTable::activateSnapshot(TableStreamType streamType) {
    }
 }
 
-void PersistentTable::stopSnapshot() {
-   if (m_snapIt.get() != nullptr && m_snapIt->drained()) {
+void PersistentTable::stopSnapshot(bool activated) {
+   if (activated || (m_snapIt.get() != nullptr && m_snapIt->drained())) {
       if (isReplicatedTable()) {
          ScopedReplicatedResourceLock scopedLock;
          ExecuteWithMpMemory useMpMemory;

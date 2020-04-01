@@ -316,7 +316,7 @@ class NValue {
 
     /* Serialize this NValue to a SerializeOutput */
     void serializeTo(SerializeOutput &output) const;
-    void serializeTo(SerializeOutput &output, bool checkWideColumn, int32 maxLength, bool isInBytes) const;
+    void serializeTo(SerializeOutput &output, bool isInlined, int32_t maxLength, bool isInBytes) const;
 
     /* Serialize this NValue to an Export stream */
     size_t serializeToExport_withoutNull(ExportSerializeOutput&) const;
@@ -3086,13 +3086,15 @@ inline void NValue::deserializeFromAllocateForStorage(ValueType type, SerializeI
    throwDynamicSQLException("NValue::deserializeFromAllocateForStorage() unrecognized type '%s'",
          getTypeName(type).c_str());
 }
+
 inline void NValue::serializeTo(SerializeOutput &output) const {
-   serializeTo(output, false, 0, false);
+    serializeTo(output, true, 0, false);
 }
+
 /**
  * Serialize this NValue to the provided SerializeOutput
  */
-inline void NValue::serializeTo(SerializeOutput &output, bool checkWideColumn, int32_t maxLength, bool isInBytes) const {
+inline void NValue::serializeTo(SerializeOutput &output, bool isInlined, int32_t maxLength, bool isInBytes) const {
     const ValueType type = getValueType();
     switch (type) {
         case ValueType::tVARCHAR:
@@ -3108,10 +3110,11 @@ inline void NValue::serializeTo(SerializeOutput &output, bool checkWideColumn, i
                 if (length <= OBJECTLENGTH_NULL) {
                     throwDynamicSQLException("Attempted to serialize an NValue with a negative length");
                 }
-                output.writeInt(length);
-                if (checkWideColumn) {
-                   checkTooWideForVariableLengthType(type, buf, length, maxLength, isInBytes);
+                if (!isInlined) {
+                    checkTooWideForVariableLengthType(type, buf, length, maxLength, isInBytes);
                 }
+                output.writeInt(length);
+
                 // Not a null string: write it out
                 if (type != ValueType::tGEOGRAPHY) {
                     output.writeBytes(buf, length);
