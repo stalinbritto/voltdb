@@ -172,6 +172,20 @@ template<allocator_enum_type T> inline allocator_type<T> const& ChunkHolder<T>::
     return *this;
 }
 
+template<allocator_enum_type T> inline string ChunkHolder<T>::info(void const* p) const {
+    ostringstream oss;
+    oss << "[" << id() << ": begin@" << range_begin() << ", next@" << range_next()
+        << ", end@" << range_end();
+    if (p != nullptr) {
+        assert(p >= range_begin() && p <= range_end());
+        auto const offset = (reinterpret_cast<char const*>(p) -
+                reinterpret_cast<char const*>(range_begin())) / tupleSize();
+        oss << ", offset=" << offset;
+    }
+    oss << "] ";
+    return oss.str();
+}
+
 inline EagerNonCompactingChunk::EagerNonCompactingChunk(id_type s1, size_t s2, size_t s3) : super(s1, s2, s3) {}
 
 inline void* EagerNonCompactingChunk::allocate() noexcept {
@@ -1646,20 +1660,22 @@ inline typename IterableTableTupleChunks<Chunks, Tag, E>::template iterator_cb_t
 IterableTableTupleChunks<Chunks, Tag, E>::iterator_cb_type<Trans, perm>::operator*() noexcept {
     auto* orig = super::operator*();
     auto* trans = m_cb(orig);
-    auto const& c = reinterpret_cast<HookedCompactingChunks<
-        TxnPreHook<NonCompactingChunks<LazyNonCompactingChunk>, HistoryRetainTrait<gc_policy::batched>>> const&>(
-                super::storage());
+    using type = HookedCompactingChunks<
+        TxnPreHook<NonCompactingChunks<LazyNonCompactingChunk>, HistoryRetainTrait<gc_policy::batched>>>;
+    auto const& c = reinterpret_cast<type const&>(super::storage());
     if (c.loggingEnabled()) {
+        auto const& pos = const_cast<type&>(c).find(orig, false);
+        assert(pos.first);
+        assert(pos.second != c.end());
         ostringstream oss;
         oss << info_hdr();
-        oss << "sn-iterator(" << orig;
+        oss << "sn-iterator(" << orig << " " << pos.second->info(orig);
         if (trans != orig) {
             oss << " => " << trans;
         }
         oss << "), m_changes has " << c.map_entries() << " entries: " << c.map_keys();
         c.log(oss.str());
     }
-//    oss << c.info(orig) << endl;
     return const_cast<void*>(trans);
 }
 
@@ -2110,9 +2126,17 @@ HookedCompactingChunks<Hook, E>::freeze() {
         oss << "freeze() on allocator#" << id() <<
             ": boundaries are: left = (id = " <<
             frozenBoundaries().left().chunkId() << ", next = " <<
-            frozenBoundaries().left().address() << "), right = (id = " <<
+            frozenBoundaries().left().address();
+        if (! empty()) {
+            oss << begin()->info();
+        }
+        oss << "), right = (id = " <<
             frozenBoundaries().right().chunkId() << ", next = " <<
-            frozenBoundaries().right().address() << ")\n";
+            frozenBoundaries().right().address();
+        if (! empty()) {
+            oss << last()->info();
+        }
+        oss << ")\n";
         log(oss.str());
     }
     return ptr;
@@ -2190,13 +2214,23 @@ HookedCompactingChunks<Hook, E>::remove_force(
         oss << "remove_force([removed]: ";
         for_each(CompactingChunks::m_batched.removed().cbegin(),
                 CompactingChunks::m_batched.removed().cend(),
-                [&oss] (void* s) noexcept { oss << s << ", "; });
+                [this, &oss] (void* s) noexcept {
+                    auto const& pos = find(s);
+                    assert(pos.first);
+                    assert(pos.second != end());
+                    oss << s << " " << pos.second->info(s) <<", ";
+                });
         oss.seekp(-2, ios_base::end);
         oss << "\n[moved]: ";
         for_each(CompactingChunks::m_batched.movements().cbegin(),
                 CompactingChunks::m_batched.movements().cend(),
-                [&oss] (pair<void*, void*> const& s) noexcept {
-                oss << s.first << " <- " << s.second << ", ";
+                [this, &oss] (pair<void*, void*> const& s) noexcept {
+                    auto const& pos1 = find(s.first);
+                    auto const& pos2 = find(s.second);
+                    assert(pos1.first && pos2.first);
+                    assert(pos1.second != end() && pos2.second != end());
+                    oss << s.first << " " << pos1.second->info(s.first) << " <- "
+                        << s.second << " " << pos2.second->info(s.second) << ", ";
                 });
         oss.seekp(-2, ios_base::end);
         oss << ")\n";
