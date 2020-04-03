@@ -450,7 +450,7 @@ public:
         }
         return m_isReplicated;
     }
-
+    bool isMaterialized() { return m_isMaterialized;}
     UndoQuantumReleaseInterest *getReplicatedInterest() { return &m_releaseReplicated; }
     UndoQuantumReleaseInterest *getDummyReplicatedInterest() { return &m_releaseDummyReplicated; }
 

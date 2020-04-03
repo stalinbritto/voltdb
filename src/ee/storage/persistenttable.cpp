@@ -123,9 +123,11 @@ void PersistentTable::initializeWithColumns(TupleSchema* schema,
         auto const cleaner = [this] (void const* p) noexcept {
             TableTuple tuple(this->m_schema);
             tuple.move(const_cast<void*>(p));
+            if (m_isMaterialized) {
             std::ostringstream buffer;
             buffer << "DELETE Callback: " << tuple.debug(this->name()).c_str() << std::endl;
             LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
+            }
             this->decreaseStringMemCount(tuple.getNonInlinedMemorySizeForPersistentTable());
             tuple.freeObjectColumns();
         };
@@ -617,9 +619,11 @@ TableTuple PersistentTable::createTuple(TableTuple const &source){
     void *address = const_cast<void*>(reinterpret_cast<void const *> (allocator().allocate()));
     target.move(address);
     target.copyForPersistentInsert(source);
+    if (m_isMaterialized) {
     std::ostringstream buffer;
     buffer << "CREATE: " << target.debug(name()).c_str() << std::endl;
     LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
+    }
     return target;
 }
 
@@ -632,9 +636,11 @@ void PersistentTable::finalizeRelease() {
            ::memcpy(p.first, p.second, m_tupleLength);
            target.move(p.first);
            origin.move(p.second);
+           if (this->m_isMaterialized) {
            std::ostringstream buffer;
            buffer << "MOVE: " << origin.debug(name()).c_str() << " ==> TO:" << target.debug(name()).c_str()  << std::endl;
            LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
+           }
            swapTuples(origin, target);
         }
     });
@@ -822,11 +828,11 @@ void PersistentTable::updateTupleWithSpecificIndexes(
     UndoQuantum* uq = NULL;
     char* oldTupleData = NULL;
     ExecutorContext* ec = ExecutorContext::getExecutorContext();
-
+    if (m_isMaterialized) {
     std::ostringstream buf;
     buf << "UPDATE: " << targetTupleToUpdate.debug(name()).c_str() << std::endl;
     LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buf.str().c_str());
-
+    }
     /**
      * Check for index constraint violations.
      */
@@ -1223,11 +1229,11 @@ void PersistentTable::deleteTupleRelease(char* tuple) {
     if (m_tableStreamer != NULL) {
         m_tableStreamer->notifyTupleDelete(target);
     }
-
+    if (m_isMaterialized) {
     std::ostringstream buf;
     buf << "DELETE: " << target.debug(name()).c_str() << std::endl;
     LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buf.str().c_str());
-
+    }
     // Reserve batch delete, only once
     if (m_batchDeleteTupleCount > 0) {
         allocator().remove_reserve(m_batchDeleteTupleCount);
@@ -1241,9 +1247,11 @@ void PersistentTable::deleteTupleRelease(char* tuple) {
             TableTuple src(m_schema);
             src.move(const_cast<void*>(e.copy_of()));
             src.copyNonInlinedColumnObjects(target);
+            if (m_isMaterialized) {
             std::ostringstream buffer;
             buffer << "DELETE COPY SRC: " << src.debug("").c_str() << " COPIED:" << target.debug("").c_str() << std::endl;
             LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
+            }
         }
     }
 }
