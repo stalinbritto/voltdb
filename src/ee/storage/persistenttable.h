@@ -450,7 +450,7 @@ public:
         }
         return m_isReplicated;
     }
-    bool isMaterialized() { return m_isMaterialized;}
+
     UndoQuantumReleaseInterest *getReplicatedInterest() { return &m_releaseReplicated; }
     UndoQuantumReleaseInterest *getDummyReplicatedInterest() { return &m_releaseDummyReplicated; }
 
@@ -1020,9 +1020,6 @@ inline void PersistentTable::deleteTupleStorage(TableTuple& tuple) {
 
 
 inline void PersistentTable::deleteTailTupleStorage(TableTuple& tuple) {
-    std::ostringstream buffer;
-    buffer << "DELETE FROM TAIL: " << tuple.debug(name()).c_str() << std::endl;
-    LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
     deleteTupleStorage(tuple);
 
     allocator().remove(PersistentTable::remove_direction::from_tail, tuple.address());

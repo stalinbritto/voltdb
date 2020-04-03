@@ -143,12 +143,14 @@ int64_t CopyOnWriteContext::handleStreamMore(TupleOutputStreamProcessor &outputS
                    m_tuplesRemaining = 0;
                 }
                 bool deleteTuple = false;
-                if (table.isMaterialized()) {
-                std::ostringstream buf;
-                buf << "SNAP@" << tuple.debug(table.name()).c_str() << std::endl;
-                LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buf.str().c_str());
+                try {
+                    yield = outputStreams.writeRow(tuple, m_hiddenColumnFilter, &deleteTuple);
+                } catch (SQLException& e) {
+                    std::ostringstream buf;
+                    buf << "Serialization error on tuple:" << tuple.debug(table.name()).c_str() << std::endl;
+                    LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buf.str().c_str());
+                    throw;
                 }
-                yield = outputStreams.writeRow(tuple, m_hiddenColumnFilter, &deleteTuple);
             }
         }
     }
@@ -185,9 +187,6 @@ void CopyOnWriteContext::notifyTupleUpdate(TableTuple &tuple) {
             TableTuple copied(tuple.m_schema);
             copied.move(const_cast<void*>(e.copy_of()));
             copied.copyNonInlinedColumnObjects(tuple);
-            std::ostringstream buffer;
-            buffer << "UPDATE COPY SRC: " << tuple.debug("").c_str() << " COPIED:" << copied.debug("").c_str() << std::endl;
-            LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
         }
     }
 }
