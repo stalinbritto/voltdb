@@ -142,6 +142,12 @@ int64_t CopyOnWriteContext::handleStreamMore(TupleOutputStreamProcessor &outputS
                    // -1 is used for tests when we don't bother counting. Need to force it to 0 here.
                    m_tuplesRemaining = 0;
                 }
+                if (table.isLoggingEnabled()) {
+                    std::ostringstream buf;
+                    buf << "SNAP@" << tuple.debug(table.name()).c_str() << std::endl;
+                    LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buf.str().c_str());
+                }
+
                 bool deleteTuple = false;
                 try {
                     yield = outputStreams.writeRow(tuple, m_hiddenColumnFilter, &deleteTuple);
@@ -187,6 +193,12 @@ void CopyOnWriteContext::notifyTupleUpdate(TableTuple &tuple) {
             TableTuple copied(tuple.m_schema);
             copied.move(const_cast<void*>(e.copy_of()));
             copied.copyNonInlinedColumnObjects(tuple);
+            PersistentTable &table = getTable();
+            if (table.isLoggingEnabled()) {
+               std::ostringstream buffer;
+               buffer << "UPDATE COPY SRC: " << tuple.debug("").c_str() << " COPIED:" << copied.debug("").c_str() << std::endl;
+               LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
+            }
         }
     }
 }

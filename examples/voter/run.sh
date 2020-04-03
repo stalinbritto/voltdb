@@ -21,7 +21,7 @@ source $VOLTDB_BIN/voltenv
 # (once running, all nodes are the same -- no leaders)
 STARTUPLEADERHOST="localhost"
 # list of cluster nodes separated by commas in host:[port] format
-SERVERS="localhost"
+SERVERS="volt10d.voltdb.lan"
 
 # remove binaries, logs, runtime artifacts, etc... but keep the jars
 function clean() {
@@ -91,7 +91,7 @@ function async-benchmark() {
     java -classpath voter-client.jar:$CLIENTCLASSPATH voter.AsyncBenchmark \
         --displayinterval=5 \
         --warmup=5 \
-        --duration=120 \
+        --duration=30 \
         --servers=$SERVERS \
         --contestants=6 \
         --maxvotes=2

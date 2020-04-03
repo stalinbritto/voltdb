@@ -450,7 +450,8 @@ public:
         }
         return m_isReplicated;
     }
-
+    bool isMaterialized() { return m_isMaterialized;}
+    bool isLoggingEnabled() { return m_isLoggingEnabled;}
     UndoQuantumReleaseInterest *getReplicatedInterest() { return &m_releaseReplicated; }
     UndoQuantumReleaseInterest *getDummyReplicatedInterest() { return &m_releaseDummyReplicated; }
 
@@ -730,7 +731,7 @@ private:
     // CONSTRAINTS
     //Is this a materialized view?
     bool m_isMaterialized;
-
+    bool m_isLoggingEnabled;
     // Value reads from catalog table, no matter partition column exists or not
     bool m_isReplicated;
 

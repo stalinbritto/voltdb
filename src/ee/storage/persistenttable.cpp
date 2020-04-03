@@ -77,6 +77,7 @@ PersistentTable::PersistentTable(int partitionColumn,
                                  TableType tableType)
     : Table(tableAllocationTargetSize == 0 ? TABLE_BLOCKSIZE : tableAllocationTargetSize)
     , m_isMaterialized(isMaterialized)   // Other constructors are dependent on this one
+    , m_isLoggingEnabled(false)
     , m_isReplicated(isReplicated)
     , m_allowNulls()
     , m_partitionColumn(partitionColumn)
@@ -115,6 +116,7 @@ void PersistentTable::initializeWithColumns(TupleSchema* schema,
 
     Table::initializeWithColumns(schema, columnNames, ownsTupleSchema);
 
+    m_isLoggingEnabled = (name() == "view1");
     // NOTE: we embed m_data pointer immediately after the
     // boundary of TableTuple, so that there is no extra Pool
     // that stores non-inlined tuple data.
@@ -123,6 +125,11 @@ void PersistentTable::initializeWithColumns(TupleSchema* schema,
         auto const cleaner = [this] (void const* p) noexcept {
             TableTuple tuple(this->m_schema);
             tuple.move(const_cast<void*>(p));
+            if (isLoggingEnabled()) {
+                std::ostringstream buffer;
+                buffer << "DELETE Callback: " << tuple.debug(this->name()).c_str() << std::endl;
+                LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
+            }
             this->decreaseStringMemCount(tuple.getNonInlinedMemorySizeForPersistentTable());
             tuple.freeObjectColumns();
         };
@@ -138,6 +145,9 @@ void PersistentTable::initializeWithColumns(TupleSchema* schema,
 
     m_tableAllocationSize = m_dataStorage->chunkSize();
     m_tuplesPerChunk = m_tableAllocationSize / m_tupleLength;
+    if (m_isLoggingEnabled) {
+        allocator().enableLogging();
+    }
 }
 
 PersistentTable::~PersistentTable() {
@@ -615,6 +625,11 @@ TableTuple PersistentTable::createTuple(TableTuple const &source){
     target.move(address);
     target.resetHeader();
     target.copyForPersistentInsert(source);
+    if (isLoggingEnabled()) {
+       std::ostringstream buffer;
+       buffer << "CREATE: " << target.debug(name()).c_str() << std::endl;
+       LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
+    }
     return target;
 }
 
@@ -626,6 +641,11 @@ void PersistentTable::finalizeRelease() {
         for(auto const& p : tuples) {
            target.move(p.first);
            origin.move(p.second);
+           if (isLoggingEnabled()) {
+              std::ostringstream buffer;
+              buffer << "MOVE: " << origin.debug(name()).c_str() << " ==> TO:" << target.debug(name()).c_str()  << std::endl;
+              LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
+           }
            swapTuples(origin, target);
         }
     });
@@ -813,7 +833,11 @@ void PersistentTable::updateTupleWithSpecificIndexes(
     UndoQuantum* uq = NULL;
     char* oldTupleData = NULL;
     ExecutorContext* ec = ExecutorContext::getExecutorContext();
-
+    if (isLoggingEnabled()) {
+       std::ostringstream buf;
+       buf << "UPDATE: " << targetTupleToUpdate.debug(name()).c_str() << std::endl;
+       LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buf.str().c_str());
+    }
     /**
      * Check for index constraint violations.
      */
@@ -1210,6 +1234,11 @@ void PersistentTable::deleteTupleRelease(char* tuple) {
     if (m_tableStreamer != NULL) {
         m_tableStreamer->notifyTupleDelete(target);
     }
+    if (isLoggingEnabled()) {
+        std::ostringstream buf;
+        buf << "DELETE: " << target.debug(name()).c_str() << std::endl;
+        LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buf.str().c_str());
+    }
 
     // Reserve batch delete, only once
     if (m_batchDeleteTupleCount > 0) {
@@ -1224,6 +1253,12 @@ void PersistentTable::deleteTupleRelease(char* tuple) {
             TableTuple src(m_schema);
             src.move(const_cast<void*>(e.copy_of()));
             src.copyNonInlinedColumnObjects(target);
+
+            if (isLoggingEnabled()) {
+               std::ostringstream buffer;
+               buffer << "DELETE COPY SRC: " << src.debug("").c_str() << " COPIED:" << target.debug("").c_str() << std::endl;
+               LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
+            }
         }
     }
 }
