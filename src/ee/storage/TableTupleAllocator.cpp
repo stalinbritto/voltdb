@@ -28,16 +28,9 @@ using namespace voltdb::storage;
 
 static char buf[128];
 
-inline size_t tm_now() {
-    return chrono::duration_cast<chrono::microseconds>(
-            chrono::system_clock::now().time_since_epoch())
-        .count();
-}
-
 inline string info_hdr() {
     ostringstream oss;
-    oss << "[" << tm_now() << ", pid " << getpid() <<
-        ", thr " << this_thread::get_id() << "]: ";
+    oss << "[ thr " << this_thread::get_id() << "]: ";
     return oss.str();
 }
 
@@ -1902,11 +1895,12 @@ template<typename Alloc, typename Trait, typename E1>
 template<typename IteratorObserver, typename E2> inline
 typename TxnPreHook<Alloc, Trait, E1>::added_entry_t TxnPreHook<Alloc, Trait, E1>::add(
         typename TxnPreHook<Alloc, Trait, E1>::ChangeType type, void const* dst, IteratorObserver& obs,
-        function<void(string const&)> log_fn) {
+        function<void(string const&)> log_fn,
+        function<string(void const*)> tuplePrinter) {
     auto status = added_entry_t::status::not_frozen;
     ostringstream oss;
     oss << info_hdr();
-    oss << " Upon add() call: entries: " << map_keys() << endl;
+    oss << " Upon add() call: entries: " << map_keys();
     if (m_recording && added_entry_t::status::fresh ==
             (status = obs(dst) ? added_entry_t::status::ignored : added_entry_t::status::fresh)) {
         void const* r;
@@ -1921,7 +1915,8 @@ typename TxnPreHook<Alloc, Trait, E1>::added_entry_t TxnPreHook<Alloc, Trait, E1
         if (r == nullptr) {    // copy already exists
             vassert(m_changes.find(dst) != m_changes.cend());
             oss << "hook::add() " << (type == ChangeType::Update ? "updated" : "removed")
-                << ": w. existing entry " << dst << " => " << m_changes.find(dst)->second << endl;
+                << ": w. existing entry " << dst << ": " << tuplePrinter(dst)
+                << " => " << m_changes.find(dst)->second << ": " << tuplePrinter(m_changes.find(dst)->second);
             log_fn(oss.str());
             return {added_entry_t::status::existing, m_changes.find(dst)->second};
         } else {               // freshly created copy
@@ -1929,8 +1924,10 @@ typename TxnPreHook<Alloc, Trait, E1>::added_entry_t TxnPreHook<Alloc, Trait, E1
             vassert(m_changes.find(dst) != m_changes.cend());
             oss << "hook::add() " << (type == ChangeType::Update ? "updated" : "removed")
                 << ": adding fresh entry "
-                << dst << " => " << r << ", map @" << &m_changes << " has " << m_changes.size()
-                << " entries: " << map_keys() << endl;
+                << dst << ": " << tuplePrinter(dst) << " => "
+                << r << ": " << tuplePrinter(r) << ", map @"
+                << &m_changes << " has " << m_changes.size()
+                << " entries: " << map_keys();
             log_fn(oss.str());
             return {status, r};
         }
@@ -1939,12 +1936,12 @@ typename TxnPreHook<Alloc, Trait, E1>::added_entry_t TxnPreHook<Alloc, Trait, E1
         // copy of its original value
         auto const& iter = m_changes.find(dst);
         oss << "deliberately ignoring " <<
-            (type == ChangeType::Update ? "updated " : "removed ") << " even though frozen" << endl;
+            (type == ChangeType::Update ? "updated " : "removed ") << " even though frozen";
         log_fn(oss.str());
         return {status, iter == m_changes.cend() ? nullptr : iter->second};
     } else {                   // not frozen
         oss << "ignoring " <<
-            (type == ChangeType::Update ? "updated " : "removed ") << " since not frozen" << endl;
+            (type == ChangeType::Update ? "updated " : "removed ") << " since not frozen";
         log_fn(oss.str());
         return {};
     }
@@ -2032,14 +2029,14 @@ HookedCompactingChunks<Hook, E>::HookedCompactingChunks(size_t s,
         function<void(void const*)> const& cb) noexcept : CompactingChunks(s, cb), Hook(s, cb) {}
 
 template<typename Hook, typename E> inline HookedCompactingChunks<Hook, E>&
-HookedCompactingChunks<Hook, E>::enableLogging() noexcept {
-    m_enableLogging = true;
+HookedCompactingChunks<Hook, E>::enableLogging(function<string(void const*)> const& cb) noexcept {
+    m_printTuple = cb;
     return *this;
 }
 
 template<typename Hook, typename E> inline void
 HookedCompactingChunks<Hook, E>::log(string const& msg) const {
-    if (m_enableLogging) {
+    if (m_printTuple) {
         LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, msg.c_str());
     }
 }
@@ -2047,11 +2044,11 @@ HookedCompactingChunks<Hook, E>::log(string const& msg) const {
 template<typename Hook, typename E> inline void* HookedCompactingChunks<Hook, E>::allocate() {
     void* r = CompactingChunks::allocate();
     VOLT_TRACE("allocate() => %p", r);
-    if (m_enableLogging) {
+    if (m_printTuple) {
         ostringstream oss;
         oss << info_hdr();
         oss << "allocate(" << r << ") called on allocator#" << id() <<
-            " => chunk id=" << last()->id() << ", alloc-size = " << size() << endl;
+            " => chunk id=" << last()->id() << ", alloc-size = " << size();
         log(oss.str());
     }
     return r;
@@ -2096,17 +2093,22 @@ HookedCompactingChunks<Hook, E>::remove(typename CompactingChunks::remove_direct
 template<typename Hook, typename E>
 template<typename Tag> inline typename Hook::added_entry_t
 HookedCompactingChunks<Hook, E>::update(void* dst) {
-    if (m_enableLogging) {
+    if (m_printTuple) {
         ostringstream oss;
         oss << info_hdr();
-        oss << "update(" << dst << ") called on allocator#" << id() << ": " <<
-            (frozen() ? "frozen" : "not frozen") << endl;
+        oss << "update(" << dst << ": " << (*m_printTuple)(dst)
+            << ") called on allocator#" << id() << ": " <<
+            (frozen() ? "frozen" : "not frozen");
         log(oss.str());
         VOLT_TRACE("update(%p)", dst);
+        return Hook::add(Hook::ChangeType::Update, dst,
+                reinterpret_cast<observer_type<Tag>&>(m_iterator_observer),
+                [this](string const& s) {log(s);}, *m_printTuple);
+    } else {
+        return Hook::add(Hook::ChangeType::Update, dst,
+                reinterpret_cast<observer_type<Tag>&>(m_iterator_observer),
+                [this](string const& s) {log(s);});
     }
-    return Hook::add(Hook::ChangeType::Update, dst,
-            reinterpret_cast<observer_type<Tag>&>(m_iterator_observer),
-            [this](string const& s) {log(s);});
 }
 
 template<typename Hook, typename E>
@@ -2120,7 +2122,7 @@ HookedCompactingChunks<Hook, E>::freeze() {
     // placement new for type erasure. Note that dtor cannot be
     // called explicitly in thaw.
     new (&m_iterator_observer) observer_type<Tag>(ptr);
-    if (m_enableLogging) {
+    if (m_printTuple) {
         ostringstream oss;
         oss << info_hdr();
         oss << "freeze() on allocator#" << id() <<
@@ -2145,7 +2147,7 @@ HookedCompactingChunks<Hook, E>::freeze() {
 template<typename Hook, typename E>
 template<typename Tag> inline void HookedCompactingChunks<Hook, E>::thaw() {
     ostringstream oss;
-    if (m_enableLogging) {
+    if (m_printTuple) {
         oss << info_hdr();
         oss << "thaw() on allocator #" << id() <<
             ": frozen boundaries was: left = (id = " <<
@@ -2157,7 +2159,7 @@ template<typename Tag> inline void HookedCompactingChunks<Hook, E>::thaw() {
     Hook::thaw();
     CompactingChunks::thaw();
     reinterpret_cast<observer_type<Tag>&>(m_iterator_observer).reset();
-    if (m_enableLogging) {
+    if (m_printTuple) {
         if (empty()) {
             oss << " is empty now\n";
         } else {
@@ -2176,23 +2178,27 @@ template<typename Tag> inline typename Hook::added_entry_t
 HookedCompactingChunks<Hook, E>::remove_add(void* p) {
     CompactingChunks::m_batched.add(p);
     ostringstream oss;
-    if (m_enableLogging) {
+    if (m_printTuple) {
         oss << info_hdr();
         oss << "remove_add(" << p << ") on allocator#" << id() << ": " <<
-            (frozen() ? "frozen" : "not frozen") << endl;
+            (frozen() ? "frozen" : "not frozen");
     }
     if (frozen()) {            // hook registration
         Hook::copy(p);
-        if (m_enableLogging) {
-            oss << "Pre calling Hook::add(" << p << ")" << endl;
+        if (m_printTuple) {
+            oss << "Pre calling Hook::add(" << p << ": " << (*m_printTuple)(p) << ")";
             log(oss.str());
+            return Hook::add(Hook::ChangeType::Deletion, p,
+                    reinterpret_cast<observer_type<Tag>&>(m_iterator_observer),
+                    [this](string const& s) {log(s);}, *m_printTuple);
+        } else {
+            return Hook::add(Hook::ChangeType::Deletion, p,
+                    reinterpret_cast<observer_type<Tag>&>(m_iterator_observer),
+                    [this](string const& s) {log(s);});
         }
-        return Hook::add(Hook::ChangeType::Deletion, p,
-                reinterpret_cast<observer_type<Tag>&>(m_iterator_observer),
-                [this](string const& s) {log(s);});
     } else {
-        if (m_enableLogging) {
-            oss << "remove_add(" << p << ") NOT FROZEN" << endl;
+        if (m_printTuple) {
+            oss << "remove_add(" << p << ") NOT FROZEN";
             log(oss.str());
         }
         return {Hook::added_entry_t::status::not_frozen, nullptr};
@@ -2208,7 +2214,7 @@ template<typename Hook, typename E> inline size_t
 HookedCompactingChunks<Hook, E>::remove_force(
         function<void(vector<pair<void*, void*>> const&)> const& cb) {
     ostringstream oss;
-    if (m_enableLogging) {
+    if (m_printTuple) {
         oss << info_hdr();
         oss << "remove_force() called on allocator#" << id() << ": ";
         oss << "remove_force([removed]: ";
@@ -2218,7 +2224,8 @@ HookedCompactingChunks<Hook, E>::remove_force(
                     auto const& pos = find(s);
                     assert(pos.first);
                     assert(pos.second != end());
-                    oss << s << " " << pos.second->info(s) <<", ";
+                    oss << s << " " << pos.second->info(s)
+                        << ": " << (*m_printTuple)(s) <<", ";
                 });
         oss.seekp(-2, ios_base::end);
         oss << "\n[moved]: ";
@@ -2229,8 +2236,8 @@ HookedCompactingChunks<Hook, E>::remove_force(
                     auto const& pos2 = find(s.second);
                     assert(pos1.first && pos2.first);
                     assert(pos1.second != end() && pos2.second != end());
-                    oss << s.first << " " << pos1.second->info(s.first) << " <- "
-                        << s.second << " " << pos2.second->info(s.second) << ", ";
+                    oss << s.first << " " << pos1.second->info(s.first) << ": " << (*m_printTuple)(s.first) << " <- "
+                        << s.second << ": " << (*m_printTuple)(s.second) << " " << pos2.second->info(s.second) << ", ";
                 });
         oss.seekp(-2, ios_base::end);
         oss << ")\n";
@@ -2238,8 +2245,8 @@ HookedCompactingChunks<Hook, E>::remove_force(
     }
     cb(CompactingChunks::m_batched.movements());    // NOTE: memcpy before the call back
     auto const n = CompactingChunks::m_batched.force();
-    if (m_enableLogging) {
-        oss << "remove_force(" << n << ")" << (frozen() ? "frozen" : "not frozen") << endl;
+    if (m_printTuple) {
+        oss << "remove_force(" << n << ")" << (frozen() ? "frozen" : "not frozen");
         log(oss.str());
     }
     return n;
@@ -2420,7 +2427,7 @@ template typename TxnPreHook<alloc, HistoryRetainTrait<gc>>::added_entry_t      
             typename TxnPreHook<alloc, HistoryRetainTrait<gc>>::ChangeType,              \
             void const*,                                                                 \
             typename IterableTableTupleChunks<alloc2, tag, void>::IteratorObserver&,     \
-            function<void(string const&)>)
+            function<void(string const&)>, function<string(void const*)>)
 #define HookedMethods3(tag, alloc, gc)                                                   \
     HookedMethods4(tag, alloc, gc, __codegen__::t1);                                     \
     HookedMethods4(tag, alloc, gc, __codegen__::t2);                                     \

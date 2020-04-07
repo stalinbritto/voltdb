@@ -819,7 +819,8 @@ namespace voltdb {
             template<typename IteratorObserver,
                 typename = typename enable_if<IteratorObserver::is_iterator_observer::value>::type>
             added_entry_t add(ChangeType, void const*, IteratorObserver&,
-                    function<void(string const&)> = [](string const&){});
+                    function<void(string const&)> = [](string const&){},
+                    function<string(void const*)> = [](void const*){return "";});
             void _add_for_test_(ChangeType, void const*);
             void const* operator()(void const*) const;             // revert history at this place!
             void release(void const*);                             // local memory clean-up. Client need to call this upon having done what is needed to record current address in snapshot.
@@ -848,15 +849,17 @@ namespace voltdb {
             template<typename Tag> using observer_type = typename
                 IterableTableTupleChunks<HookedCompactingChunks<Hook>, Tag, void>::IteratorObserver;
             observer_type<truth> m_iterator_observer{};
-            bool m_enableLogging = false;
+            boost::optional<function<string(void const*)>> m_printTuple{};
         public:
             using hook_type = Hook;                    // for hooked_iterator_type
             using Hook::release;                       // reminds to client: this must be called for GC to happen (instead of delaying it to thaw())
             HookedCompactingChunks(size_t) noexcept;
             HookedCompactingChunks(size_t, function<void(void const*)> const&) noexcept;
-            HookedCompactingChunks& enableLogging() noexcept;
+            HookedCompactingChunks& enableLogging(function<string(void const*)> const&) noexcept;
             void log(string const&) const;
-            bool loggingEnabled() const noexcept { return m_enableLogging; }
+            bool loggingEnabled() const noexcept {
+                return static_cast<bool>(m_printTuple);
+            }
             template<typename Tag>
             shared_ptr<typename IterableTableTupleChunks<HookedCompactingChunks<Hook, E>, Tag, void>::hooked_iterator>
             freeze();
