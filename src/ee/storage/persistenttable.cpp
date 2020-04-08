@@ -1263,8 +1263,8 @@ void PersistentTable::deleteTupleRelease(char* tuple) {
             src.move(const_cast<void*>(e.copy_of()));
             src.copyNonInlinedColumnObjects(target);
 
-            auto const iter = allocator().find(src.address());
-            vassert(iter.first == false);
+//            auto const iter = allocator().find(src.address());
+//            vassert(iter.first == false);
             if (isLoggingEnabled()) {
                std::ostringstream buffer;
                buffer << "HOOK COPY: " << src.debug(name()).c_str() << std::endl;
