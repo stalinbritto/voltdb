@@ -648,11 +648,9 @@ void PersistentTable::finalizeRelease() {
         for(auto const& p : tuples) {
            auto const iter = this->allocator().find(p.first);
            vassert(iter.first);
-           vassert(iter.second->contains(p.first));
            target.move(p.first);
            auto const iter1 = this->allocator().find(p.second);
            vassert(iter1.first);
-           vassert(iter1.second->contains(p.second));
            origin.move(p.second);
            swapTuples(origin, target);
            if (isLoggingEnabled()) {
@@ -1269,7 +1267,6 @@ void PersistentTable::deleteTupleRelease(char* tuple) {
 
             auto const iter = allocator().find(src.address());
             vassert(iter.first == false);
-            vassert(iter.second->contains(src.address()) == false);
             if (isLoggingEnabled()) {
                std::ostringstream buffer;
                buffer << "HOOK COPY SRC: " << src.debug("").c_str() << std::endl;
