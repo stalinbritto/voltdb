@@ -116,7 +116,7 @@ void PersistentTable::initializeWithColumns(TupleSchema* schema,
 
     Table::initializeWithColumns(schema, columnNames, ownsTupleSchema);
 
-    m_isLoggingEnabled = (name() == "view1");
+    m_isLoggingEnabled =  true;
     // NOTE: we embed m_data pointer immediately after the
     // boundary of TableTuple, so that there is no extra Pool
     // that stores non-inlined tuple data.
@@ -146,7 +146,14 @@ void PersistentTable::initializeWithColumns(TupleSchema* schema,
     m_tableAllocationSize = m_dataStorage->chunkSize();
     m_tuplesPerChunk = m_tableAllocationSize / m_tupleLength;
     if (m_isLoggingEnabled) {
-        allocator().enableLogging();
+        auto const printer = [this](void const* p){
+            TableTuple tuple(this->m_schema);
+            tuple.move(const_cast<void*>(p));
+            std::ostringstream buffer;
+            buffer << tuple.debug(this->name()).c_str() << std::endl;
+            return buffer.str().c_str();
+        };
+        allocator().enableLogging(printer);
     }
 }
 
@@ -625,11 +632,11 @@ TableTuple PersistentTable::createTuple(TableTuple const &source){
     target.move(address);
     target.resetHeader();
     target.copyForPersistentInsert(source);
-    if (isLoggingEnabled()) {
-       std::ostringstream buffer;
-       buffer << "CREATE: " << target.debug(name()).c_str() << std::endl;
-       LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
-    }
+//    if (isLoggingEnabled()) {
+//       std::ostringstream buffer;
+//       buffer << "CREATE: " << target.debug(name()).c_str() << std::endl;
+//       LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
+//    }
     return target;
 }
 
@@ -639,14 +646,20 @@ void PersistentTable::finalizeRelease() {
     TableTuple origin(m_schema);
     allocator().remove_force([this, &target, &origin](vector<pair<void*, void*>> const& tuples) {
         for(auto const& p : tuples) {
+           auto const iter = this->allocator().find(p.first);
+           vassert(iter.first);
+           vassert(iter.second->contains(p.first));
            target.move(p.first);
+           auto const iter1 = this->allocator().find(p.second);
+           vassert(iter1.first);
+           vassert(iter1.second->contains(p.second));
            origin.move(p.second);
+           swapTuples(origin, target);
            if (isLoggingEnabled()) {
               std::ostringstream buffer;
-              buffer << "MOVE: " << origin.debug(name()).c_str() << " ==> TO:" << target.debug(name()).c_str()  << std::endl;
+              buffer << "MOVE: " << origin.debug(name()).c_str() << "\n ==> TO:" << target.debug(name()).c_str()  << std::endl;
               LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
            }
-           swapTuples(origin, target);
         }
     });
     m_invisibleTuplesPendingDeleteCount = 0;
@@ -1254,9 +1267,12 @@ void PersistentTable::deleteTupleRelease(char* tuple) {
             src.move(const_cast<void*>(e.copy_of()));
             src.copyNonInlinedColumnObjects(target);
 
+            auto const iter = allocator().find(src.address());
+            vassert(iter.first == false);
+            vassert(iter.second->contains(src.address()) == false);
             if (isLoggingEnabled()) {
                std::ostringstream buffer;
-               buffer << "DELETE COPY SRC: " << src.debug("").c_str() << " COPIED:" << target.debug("").c_str() << std::endl;
+               buffer << "HOOK COPY SRC: " << src.debug("").c_str() << std::endl;
                LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
             }
         }

@@ -152,7 +152,7 @@ std::string NValue::debug() const {
           ptr = getObject_withoutNull(length);
           out_val = std::string(ptr, length);
           buffer << "[" << length << "]";
-          buffer << "\"" << out_val;// << "\"[@" << static_cast<const void*>(ptr) << "]";
+          buffer << "\"" << out_val << "\"[@" << static_cast<const void*>(ptr) << "]";
           break;
         case ValueType::tVARBINARY:
           ptr = getObject_withoutNull(length);
