@@ -644,11 +644,11 @@ void PersistentTable::finalizeRelease() {
     TableTuple origin(m_schema);
     allocator().remove_force([this, &target, &origin](vector<pair<void*, void*>> const& tuples) {
         for(auto const& p : tuples) {
-           auto const iter = this->allocator().find(p.first);
-           vassert(iter.first);
+//           auto const iter = this->allocator().find(p.first);
+//           vassert(iter.first);
            target.move(p.first);
-           auto const iter1 = this->allocator().find(p.second);
-           vassert(iter1.first);
+//           auto const iter1 = this->allocator().find(p.second);
+//           vassert(iter1.first);
            origin.move(p.second);
            swapTuples(origin, target);
            if (isLoggingEnabled()) {
@@ -1245,7 +1245,7 @@ void PersistentTable::deleteTupleRelease(char* tuple) {
     }
     if (isLoggingEnabled()) {
         std::ostringstream buf;
-        buf << "DELETE: " << target.debug(name()).c_str() << std::endl;
+        buf << "CHUNCK DELETE: " << target.debug(name()).c_str() << std::endl;
         LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buf.str().c_str());
     }
 
@@ -1267,7 +1267,7 @@ void PersistentTable::deleteTupleRelease(char* tuple) {
             vassert(iter.first == false);
             if (isLoggingEnabled()) {
                std::ostringstream buffer;
-               buffer << "HOOK COPY SRC: " << src.debug("").c_str() << std::endl;
+               buffer << "HOOK COPY: " << src.debug(name()).c_str() << std::endl;
                LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
             }
         }

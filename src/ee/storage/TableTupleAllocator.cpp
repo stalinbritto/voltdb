@@ -2244,42 +2244,42 @@ HookedCompactingChunks<Hook, E>::remove_reserve(size_t n) {
 template<typename Hook, typename E> inline size_t
 HookedCompactingChunks<Hook, E>::remove_force(
         function<void(vector<pair<void*, void*>> const&)> const& cb) {
-    ostringstream oss;
-    if (m_printTuple) {
-        oss << info_hdr();
-        oss << "remove_force() called on allocator#" << id() << ": ";
-        oss << "remove_force([removed]: ";
-        for_each(CompactingChunks::m_batched.removed().cbegin(),
-                CompactingChunks::m_batched.removed().cend(),
-                [this, &oss] (void* s) noexcept {
-                    auto const& pos = find(s);
-                    assert(pos.first);
-                    assert(pos.second != end());
-                    oss << s << " " << pos.second->info(s)
-                        << ": " << (*m_printTuple)(s) <<", ";
-                });
-        oss.seekp(-2, ios_base::end);
-        oss << "\n[moved]: ";
-        for_each(CompactingChunks::m_batched.movements().cbegin(),
-                CompactingChunks::m_batched.movements().cend(),
-                [this, &oss] (pair<void*, void*> const& s) noexcept {
-                    auto const& pos1 = find(s.first);
-                    auto const& pos2 = find(s.second);
-                    assert(pos1.first && pos2.first);
-                    assert(pos1.second != end() && pos2.second != end());
-                    oss << s.first << " " << pos1.second->info(s.first) << ": " << (*m_printTuple)(s.first) << " <- "
-                        << s.second << ": " << (*m_printTuple)(s.second) << " " << pos2.second->info(s.second) << ", ";
-                });
-        oss.seekp(-2, ios_base::end);
-        oss << ")\n";
-        VOLT_TRACE("%s", oss.str().c_str());
-    }
+//    ostringstream oss;
+//    if (m_printTuple) {
+//        oss << info_hdr();
+//        oss << "remove_force() called on allocator#" << id() << ": ";
+//        oss << "remove_force([removed]: ";
+//        for_each(CompactingChunks::m_batched.removed().cbegin(),
+//                CompactingChunks::m_batched.removed().cend(),
+//                [this, &oss] (void* s) noexcept {
+//                    auto const& pos = find(s);
+//                    assert(pos.first);
+//                    assert(pos.second != end());
+//                    oss << s << " " << pos.second->info(s)
+//                        << ": " << (*m_printTuple)(s) <<", ";
+//                });
+//        oss.seekp(-2, ios_base::end);
+//        oss << "\n[moved]: ";
+//        for_each(CompactingChunks::m_batched.movements().cbegin(),
+//                CompactingChunks::m_batched.movements().cend(),
+//                [this, &oss] (pair<void*, void*> const& s) noexcept {
+//                    auto const& pos1 = find(s.first);
+//                    auto const& pos2 = find(s.second);
+//                    assert(pos1.first && pos2.first);
+//                    assert(pos1.second != end() && pos2.second != end());
+//                    oss << s.first << " " << pos1.second->info(s.first) << ": " << (*m_printTuple)(s.first) << " <- "
+//                        << s.second << ": " << (*m_printTuple)(s.second) << " " << pos2.second->info(s.second) << ", ";
+//                });
+//        oss.seekp(-2, ios_base::end);
+//        oss << ")\n";
+//        VOLT_TRACE("%s", oss.str().c_str());
+//    }
     cb(CompactingChunks::m_batched.movements());    // NOTE: memcpy before the call back
     auto const n = CompactingChunks::m_batched.force();
-    if (m_printTuple) {
-        oss << "remove_force(" << n << ")" << (frozen() ? "frozen" : "not frozen");
-        log(oss.str());
-    }
+//    if (m_printTuple) {
+//        oss << "remove_force(" << n << ")" << (frozen() ? "frozen" : "not frozen");
+//        log(oss.str());
+//    }
     return n;
 }
 
