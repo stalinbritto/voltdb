@@ -1912,6 +1912,7 @@ typename TxnPreHook<Alloc, Trait, E1>::added_entry_t TxnPreHook<Alloc, Trait, E1
             default:
                 r = remove(dst);
         }
+        m_last = nullptr;
         if (r == nullptr) {    // copy already exists
             vassert(m_changes.find(dst) != m_changes.cend());
             oss << "hook::add() " << (type == ChangeType::Update ? "updated" : "removed")
@@ -1932,6 +1933,7 @@ typename TxnPreHook<Alloc, Trait, E1>::added_entry_t TxnPreHook<Alloc, Trait, E1
             return {status, r};
         }
     } else if (m_recording) {
+        m_last = nullptr;
         // ignored state: the tuple may, or may not, have a local
         // copy of its original value
         auto const& iter = m_changes.find(dst);
@@ -1940,6 +1942,7 @@ typename TxnPreHook<Alloc, Trait, E1>::added_entry_t TxnPreHook<Alloc, Trait, E1
         log_fn(oss.str());
         return {status, iter == m_changes.cend() ? nullptr : iter->second};
     } else {                   // not frozen
+        m_last = nullptr;
         oss << "ignoring " <<
             (type == ChangeType::Update ? "updated " : "removed ") << " since not frozen";
         log_fn(oss.str());
