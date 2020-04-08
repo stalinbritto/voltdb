@@ -149,9 +149,7 @@ void PersistentTable::initializeWithColumns(TupleSchema* schema,
         auto const printer = [this](void const* p){
             TableTuple tuple(this->m_schema);
             tuple.move(const_cast<void*>(p));
-            std::ostringstream buffer;
-            buffer << tuple.debug(this->name()).c_str() << std::endl;
-            return buffer.str().c_str();
+            return tuple.debug(this->name());
         };
         allocator().enableLogging(printer);
     }

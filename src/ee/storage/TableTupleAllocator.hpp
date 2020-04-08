@@ -818,9 +818,11 @@ namespace voltdb {
             // calling add(...), unlike insertion/update.
             template<typename IteratorObserver,
                 typename = typename enable_if<IteratorObserver::is_iterator_observer::value>::type>
+            added_entry_t add(ChangeType, void const*, IteratorObserver&);
+            template<typename IteratorObserver,
+                typename = typename enable_if<IteratorObserver::is_iterator_observer::value>::type>
             added_entry_t add(ChangeType, void const*, IteratorObserver&,
-                    function<void(string const&)> = [](string const&){},
-                    function<string(void const*)> = [](void const*){return "";});
+                    function<void(string const&)> const&, function<string(void const*)> const&);
             void _add_for_test_(ChangeType, void const*);
             void const* operator()(void const*) const;             // revert history at this place!
             void release(void const*);                             // local memory clean-up. Client need to call this upon having done what is needed to record current address in snapshot.
@@ -859,6 +861,13 @@ namespace voltdb {
             void log(string const&) const;
             bool loggingEnabled() const noexcept {
                 return static_cast<bool>(m_printTuple);
+            }
+            string stringify(void const* p) const {
+                if (loggingEnabled()) {
+                    return (*m_printTuple)(p);
+                } else {
+                    return "";
+                }
             }
             template<typename Tag>
             shared_ptr<typename IterableTableTupleChunks<HookedCompactingChunks<Hook, E>, Tag, void>::hooked_iterator>

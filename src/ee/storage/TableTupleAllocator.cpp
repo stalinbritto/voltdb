@@ -1662,11 +1662,11 @@ IterableTableTupleChunks<Chunks, Tag, E>::iterator_cb_type<Trans, perm>::operato
         assert(pos.second != c.end());
         ostringstream oss;
         oss << info_hdr();
-        oss << "sn-iterator(" << orig << " " << pos.second->info(orig);
+        oss << "sn-iterator(" << orig << ": " << c.stringify(orig) << " " << pos.second->info(orig);
         if (trans != orig) {
-            oss << " => " << trans;
+            oss << " => " << trans << ": " << c.stringify(trans);
         }
-        oss << "), m_changes has " << c.map_entries() << " entries: " << c.map_keys();
+        oss << "), m_changes has " << c.map_entries() << " entries";
         c.log(oss.str());
     }
     return const_cast<void*>(trans);
@@ -1894,13 +1894,51 @@ TxnPreHook<Alloc, Trait, E>::copy(void const* p) {     // API essential
 template<typename Alloc, typename Trait, typename E1>
 template<typename IteratorObserver, typename E2> inline
 typename TxnPreHook<Alloc, Trait, E1>::added_entry_t TxnPreHook<Alloc, Trait, E1>::add(
+        typename TxnPreHook<Alloc, Trait, E1>::ChangeType type, void const* dst, IteratorObserver& obs) {
+    auto status = added_entry_t::status::not_frozen;
+    if (m_recording && added_entry_t::status::fresh ==
+            (status = obs(dst) ? added_entry_t::status::ignored : added_entry_t::status::fresh)) {
+        void const* r;
+        switch (type) {
+            case ChangeType::Update:
+                r = update(dst);
+                break;
+            case ChangeType::Deletion:
+            default:
+                r = remove(dst);
+        }
+        m_last = nullptr;
+        if (r == nullptr) {    // copy already exists
+            vassert(m_changes.find(dst) != m_changes.cend());
+            return {added_entry_t::status::existing, m_changes.find(dst)->second};
+        } else {               // freshly created copy
+            vassert(status == added_entry_t::status::fresh);
+            vassert(m_changes.find(dst) != m_changes.cend());
+            return {status, r};
+        }
+    } else if (m_recording) {
+        m_last = nullptr;
+        // ignored state: the tuple may, or may not, have a local
+        // copy of its original value
+        auto const& iter = m_changes.find(dst);
+        return {status, iter == m_changes.cend() ? nullptr : iter->second};
+    } else {                   // not frozen
+        m_last = nullptr;
+        return {};
+    }
+}
+
+
+template<typename Alloc, typename Trait, typename E1>
+template<typename IteratorObserver, typename E2> inline
+typename TxnPreHook<Alloc, Trait, E1>::added_entry_t TxnPreHook<Alloc, Trait, E1>::add(
         typename TxnPreHook<Alloc, Trait, E1>::ChangeType type, void const* dst, IteratorObserver& obs,
-        function<void(string const&)> log_fn,
-        function<string(void const*)> tuplePrinter) {
+        function<void(string const&)> const& log_fn,
+        function<string(void const*)> const& tuplePrinter) {
     auto status = added_entry_t::status::not_frozen;
     ostringstream oss;
     oss << info_hdr();
-    oss << " Upon add() call: entries: " << map_keys();
+    oss << " Upon add() call: entries";
     if (m_recording && added_entry_t::status::fresh ==
             (status = obs(dst) ? added_entry_t::status::ignored : added_entry_t::status::fresh)) {
         void const* r;
@@ -1928,7 +1966,7 @@ typename TxnPreHook<Alloc, Trait, E1>::added_entry_t TxnPreHook<Alloc, Trait, E1
                 << dst << ": " << tuplePrinter(dst) << " => "
                 << r << ": " << tuplePrinter(r) << ", map @"
                 << &m_changes << " has " << m_changes.size()
-                << " entries: " << map_keys();
+                << " entries";
             log_fn(oss.str());
             return {status, r};
         }
@@ -2047,13 +2085,6 @@ HookedCompactingChunks<Hook, E>::log(string const& msg) const {
 template<typename Hook, typename E> inline void* HookedCompactingChunks<Hook, E>::allocate() {
     void* r = CompactingChunks::allocate();
     VOLT_TRACE("allocate() => %p", r);
-    if (m_printTuple) {
-        ostringstream oss;
-        oss << info_hdr();
-        oss << "allocate(" << r << ") called on allocator#" << id() <<
-            " => chunk id=" << last()->id() << ", alloc-size = " << size();
-        log(oss.str());
-    }
     return r;
 }
 
@@ -2077,8 +2108,7 @@ template<typename Tag> inline void HookedCompactingChunks<Hook, E>::clear() {
     CompactingChunks::clear([this] (void const* s) noexcept {
                 Hook::copy(s);
                 Hook::add(Hook::ChangeType::Deletion, s,
-                        reinterpret_cast<observer_type<Tag>&>(m_iterator_observer),
-                        [this](string const& s) {log(s);});
+                        reinterpret_cast<observer_type<Tag>&>(m_iterator_observer));
             });
 }
 
@@ -2109,8 +2139,7 @@ HookedCompactingChunks<Hook, E>::update(void* dst) {
                 [this](string const& s) {log(s);}, *m_printTuple);
     } else {
         return Hook::add(Hook::ChangeType::Update, dst,
-                reinterpret_cast<observer_type<Tag>&>(m_iterator_observer),
-                [this](string const& s) {log(s);});
+                reinterpret_cast<observer_type<Tag>&>(m_iterator_observer));
     }
 }
 
@@ -2183,8 +2212,8 @@ HookedCompactingChunks<Hook, E>::remove_add(void* p) {
     ostringstream oss;
     if (m_printTuple) {
         oss << info_hdr();
-        oss << "remove_add(" << p << ") on allocator#" << id() << ": " <<
-            (frozen() ? "frozen" : "not frozen");
+        oss << "remove_add(" << p << ": " << (*m_printTuple)(p) << ") on allocator#" << id() << ": " <<
+            (frozen() ? "frozen " : "not frozen ");
     }
     if (frozen()) {            // hook registration
         Hook::copy(p);
@@ -2196,12 +2225,11 @@ HookedCompactingChunks<Hook, E>::remove_add(void* p) {
                     [this](string const& s) {log(s);}, *m_printTuple);
         } else {
             return Hook::add(Hook::ChangeType::Deletion, p,
-                    reinterpret_cast<observer_type<Tag>&>(m_iterator_observer),
-                    [this](string const& s) {log(s);});
+                    reinterpret_cast<observer_type<Tag>&>(m_iterator_observer));
         }
     } else {
         if (m_printTuple) {
-            oss << "remove_add(" << p << ") NOT FROZEN";
+            oss << "remove_add(" << p << ": " << (*m_printTuple)(p) << ") NOT FROZEN";
             log(oss.str());
         }
         return {Hook::added_entry_t::status::not_frozen, nullptr};
@@ -2430,7 +2458,13 @@ template typename TxnPreHook<alloc, HistoryRetainTrait<gc>>::added_entry_t      
             typename TxnPreHook<alloc, HistoryRetainTrait<gc>>::ChangeType,              \
             void const*,                                                                 \
             typename IterableTableTupleChunks<alloc2, tag, void>::IteratorObserver&,     \
-            function<void(string const&)>, function<string(void const*)>)
+            function<void(string const&)> const&, function<string(void const*)> const&); \
+template typename TxnPreHook<alloc, HistoryRetainTrait<gc>>::added_entry_t               \
+    TxnPreHook<alloc, HistoryRetainTrait<gc>>::add<typename                              \
+        IterableTableTupleChunks<alloc2, tag, void>::IteratorObserver, void>(            \
+            typename TxnPreHook<alloc, HistoryRetainTrait<gc>>::ChangeType,              \
+            void const*,                                                                 \
+            typename IterableTableTupleChunks<alloc2, tag, void>::IteratorObserver&)
 #define HookedMethods3(tag, alloc, gc)                                                   \
     HookedMethods4(tag, alloc, gc, __codegen__::t1);                                     \
     HookedMethods4(tag, alloc, gc, __codegen__::t2);                                     \
