@@ -147,9 +147,10 @@ void PersistentTable::initializeWithColumns(TupleSchema* schema,
     m_tuplesPerChunk = m_tableAllocationSize / m_tupleLength;
     if (m_isLoggingEnabled) {
         auto const printer = [this](void const* p){
-            TableTuple tuple(this->m_schema);
-            tuple.move(const_cast<void*>(p));
-            return tuple.debug(this->name());
+//            TableTuple tuple(this->m_schema);
+//            tuple.move(const_cast<void*>(p));
+//            return tuple.debug(this->name());
+            return "";
         };
         allocator().enableLogging(printer);
     }
