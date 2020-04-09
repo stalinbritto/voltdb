@@ -1368,8 +1368,6 @@ struct ChunkBoundary<ChunkList, Iter, iterator_view_type::snapshot, true_type> {
                     vassert(iterId == rightId);
                     return frozenBoundaries.right().address();
                 }
-            } else if (leftId == iterId) {      // in the left boundary of frozen state
-                return frozenBoundaries.left().address();
             } else if (rightId == iterId) {     // in the right boundary
                 return frozenBoundaries.right().address();
             } else if (txnBeginChunkId == iterId) {
