@@ -1227,6 +1227,21 @@ void PersistentTable::deleteTuple(TableTuple& target, bool fallible, bool remove
             TableTuple src(m_schema);
             src.move(const_cast<void*>(e.copy_of()));
             target.copyNonInlinedColumnObjects(src);
+            if (isLoggingEnabled()) {
+               std::ostringstream buffer;
+               buffer << "DELETE TUPLE: " << target.debug(name()).c_str() << " \nCOPIED:" <<
+                     src.debug(name()).c_str() << std::endl;
+               LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
+            }
+        }
+
+        if (e.copy_of() != nullptr && e.status_of() == Hook::added_entry_t::status::existing) {
+            if (isLoggingEnabled()) {
+                std::ostringstream buffer;
+                buffer << "Chunk  delete tuple address: @" << static_cast<const void*>(target.address())
+                    << " Hook tuple existing address: @" << static_cast<const void*> (e.copy_of()) <<  std::endl;
+                LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
+            }
         }
     }
     target.setActiveFalse();
@@ -1264,12 +1279,18 @@ void PersistentTable::deleteTupleRelease(char* tuple) {
             src.move(const_cast<void*>(e.copy_of()));
             src.copyNonInlinedColumnObjects(target);
 
-//            auto const iter = allocator().find(src.address());
-//            vassert(iter.first == false);
             if (isLoggingEnabled()) {
                std::ostringstream buffer;
                buffer << "HOOK COPY: " << src.debug(name()).c_str() << std::endl;
                LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
+            }
+        }
+        if (e.copy_of() != nullptr && e.status_of() == Hook::added_entry_t::status::existing) {
+            if (isLoggingEnabled()) {
+                std::ostringstream buffer;
+                buffer << "Chunk  deleted address: @" << static_cast<const void*>(target.address())
+                    << " Hook existing address: @" << static_cast<const void*> (e.copy_of()) <<  std::endl;
+                LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
             }
         }
     }

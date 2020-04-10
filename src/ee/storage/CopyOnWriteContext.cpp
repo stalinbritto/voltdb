@@ -196,9 +196,18 @@ void CopyOnWriteContext::notifyTupleUpdate(TableTuple &tuple) {
             PersistentTable &table = getTable();
             if (table.isLoggingEnabled()) {
                std::ostringstream buffer;
-               buffer << "UPDATE COPY SRC: " << tuple.debug("").c_str() << " COPIED:" << copied.debug("").c_str() << std::endl;
+               buffer << "UPDATE COPY SRC: " << tuple.debug("").c_str() << " \nCOPIED:" <<
+                     copied.debug("").c_str() << std::endl;
                LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
             }
+        }
+        if (e.copy_of() != nullptr && e.status_of() == PersistentTable::Hook::added_entry_t::status::existing) {
+             if (getTable().isLoggingEnabled()) {
+                std::ostringstream buffer;
+                buffer << "COW Chunk deleted address: @@" << static_cast<const void*>(tuple.address())
+                << " COW Hook existing address: @" << static_cast<const void*> (e.copy_of()) <<  std::endl;
+                LogManager::getThreadLogger(LOGGERID_HOST)->log(LOGLEVEL_WARN, buffer.str().c_str());
+             }
         }
     }
 }
