@@ -237,7 +237,7 @@ namespace voltdb {
             id_type id() const noexcept;
             allocator_type<T>& get_allocator() noexcept;
             allocator_type<T> const& get_allocator() const noexcept;
-            string info(void const* = nullptr) const;
+            string info(void const*) const;
         };
 
         /**
@@ -517,16 +517,17 @@ namespace voltdb {
             id_type const m_chunkId = 0;
             void const* m_addr = nullptr;
         public:
-            position_type() noexcept = default;        // empty initiator
+            position_type() noexcept = default;
             position_type(CompactingChunks const&, void const*);
-            template<typename iterator> position_type(void const*, iterator const&) noexcept;
+            // NOTE: iterator arg is dereferenced, therefore it
+            // *can not* be end().
+            template<typename iterator> position_type(void const*, iterator const&);
             position_type(ChunkHolder<> const&) noexcept;
             position_type(position_type const&) noexcept = default;
             position_type(position_type&&) noexcept = default;
             position_type& operator=(position_type const&) noexcept;
             id_type chunkId() const noexcept;
             void const* address() const noexcept;
-            bool empty() const noexcept;               // makes it behave like std::optional<position_type>
             bool operator==(position_type const&) const noexcept;
         };
 
@@ -588,13 +589,13 @@ namespace voltdb {
                 bool empty() const noexcept;
             };
             class FrozenTxnBoundaries final {
-                position_type m_left{}, m_right{};
+                position_type const m_left{};          // NOTE: need to be empty-constructed, since we need to
+                position_type const m_right{};         // validate ChunkList state before assignment.
             public:
-                FrozenTxnBoundaries() noexcept = default;
                 FrozenTxnBoundaries(ChunkList<CompactingChunk, Compact> const&) noexcept;
+                FrozenTxnBoundaries& operator=(FrozenTxnBoundaries const&) noexcept;
                 position_type const& left() const noexcept;
                 position_type const& right() const noexcept;
-                void clear();
             };
         private:
             template<typename, typename, typename> friend struct IterableTableTupleChunks;
@@ -605,7 +606,7 @@ namespace voltdb {
             id_type const m_id = ChunksIdValidator::instance().id();
             char const* m_lastFreeFromHead = nullptr;  // arg of previous call to free(from_head, ?)
             TxnLeftBoundary m_txnFirstChunk;           // (moving) left boundary for txn
-            FrozenTxnBoundaries m_frozenTxnBoundaries{};  // frozen boundaries for txn
+            boost::optional<FrozenTxnBoundaries> m_frozenTxnBoundaries{};  // frozen boundaries for txn
             // action before deallocating a tuple from txn (or hook) memory.
             boost::optional<function<void(void const*)>> const m_finalize{};
             // the end of allocations when snapshot started: (block id, end ptr)
@@ -639,7 +640,6 @@ namespace voltdb {
                 void mapping();                        // set up m_movements
                 void shift();                          // adjust txn begin boundary
                 void validate() const;
-                size_t clear() noexcept;
             public:
                 explicit DelayedRemover(CompactingChunks&);
                 void reserve(size_t);
@@ -650,6 +650,7 @@ namespace voltdb {
                 // Actuate batch remove
                 size_t force();
                 bool empty() const noexcept;
+                size_t clear(bool) noexcept;
             } m_batched;
             size_t m_allocs = 0;
             template<typename Remove_cb> void clear(Remove_cb const&);
@@ -672,12 +673,13 @@ namespace voltdb {
             using list_type::begin; using list_type::end;
             using CompactingStorageTrait::frozen;
             using list_type::front; using list_type::last;
+
             // search in txn memory region (i.e. excludes snapshot-related, front portion of list)
             pair<bool, list_type::iterator> find(void const*) noexcept;
             pair<bool, list_type::iterator> find(id_type) noexcept;
             TxnLeftBoundary const& beginTxn() const noexcept;   // (moving) txn left boundary
             TxnLeftBoundary& beginTxn() noexcept;               // NOTE: this should really be private. Use it with care!!!
-            FrozenTxnBoundaries const& frozenBoundaries() const noexcept;  // txn boundaries when freezing
+            boost::optional<FrozenTxnBoundaries> const& frozenBoundaries() const noexcept;  // txn boundaries when freezing
             /**
              * Memory operations
              */
@@ -757,31 +759,10 @@ namespace voltdb {
         class TxnPreHook : private Trait {
             using map_type = typename Collections<collections_type>::template map<void const*, void const*>;
             map_type m_changes{};                // addr in persistent storage under change => addr storing before-change content
-            bool m_recording = false;       // in snapshot process?
-            void* m_last = nullptr;         // last allocation by copy(void const*);
             Alloc m_changeStore;
             boost::optional<function<void(void const*)>> const m_finalize{};
-            /**
-             * Creates a deep copy of the tuple stored in local
-             * storage, and keep track of it.
-             */
-            void* _copy(void const* src, bool);
-            /**
-             * - Update always changes the value of an existing table
-             *   tuple; it tracks the address and the old tuple.
-             * - Insertion always inserts to the tail of allocation
-             *   chunks; it tracks the address and the new tuple.
-             * - Deletion creates a hole at the tuple to be deleted, and
-             *   moves the last table tuple to the hole. Two entries are
-             *   added: the first tracks the address of the hole,
-             *   and tuple to be deleted; the second tracks address of
-             *   the tuple that gets moved to the hole by deletion, and
-             *   its content.
-             */
-            void const* update(void const*);
-            void const* remove(void const*);
+            bool m_recording = false;            // in snapshot process?
         public:
-            enum class ChangeType : char {Update, Deletion};
             using is_hook = true_type;
 
             TxnPreHook(size_t);
@@ -793,7 +774,6 @@ namespace voltdb {
             size_t map_entries() const noexcept {
                 return m_changes.size();
             }
-            string map_keys() const noexcept;
             void freeze();
             void thaw();
             struct added_entry_t {
@@ -818,19 +798,13 @@ namespace voltdb {
             // calling add(...), unlike insertion/update.
             template<typename IteratorObserver,
                 typename = typename enable_if<IteratorObserver::is_iterator_observer::value>::type>
-            added_entry_t add(ChangeType, void const*, IteratorObserver&);
+            added_entry_t add(void const*, IteratorObserver&);
             template<typename IteratorObserver,
                 typename = typename enable_if<IteratorObserver::is_iterator_observer::value>::type>
-            added_entry_t add(ChangeType, void const*, IteratorObserver&,
+            added_entry_t add(void const*, IteratorObserver&,
                     function<void(string const&)> const&, function<string(void const*)> const&);
-            void _add_for_test_(ChangeType, void const*);
             void const* operator()(void const*) const;             // revert history at this place!
             void release(void const*);                             // local memory clean-up. Client need to call this upon having done what is needed to record current address in snapshot.
-            // auxillary buffer that client must need for tuple deletion/update operation,
-            // to hold value before change.
-            // Client is responsible to fill the buffer before
-            // calling add() API.
-            void copy(void const* prev);
         };
 
         template<typename Chunks, typename Tag, typename> struct IterableTableTupleChunks;     // fwd decl
@@ -847,7 +821,7 @@ namespace voltdb {
         class HookedCompactingChunks : public CompactingChunks, public Hook {
             using CompactingChunks::free;// hide details
             using CompactingChunks::freeze; using Hook::freeze;
-            using Hook::add; using Hook::copy;
+            using Hook::add;
             template<typename Tag> using observer_type = typename
                 IterableTableTupleChunks<HookedCompactingChunks<Hook>, Tag, void>::IteratorObserver;
             observer_type<truth> m_iterator_observer{};
@@ -878,7 +852,6 @@ namespace voltdb {
             // supplied with same type as freeze() method.
             template<typename Tag>      // NOTE: this must be called prior to any memcpy operations happen
             typename Hook::added_entry_t update(void*);
-            template<typename Tag> void const* _remove_for_test_(void*);
             /**
              * Light weight free() operations from either end,
              * involving no compaction. Removing from head when
@@ -902,6 +875,7 @@ namespace voltdb {
              * pair's 2nd content to 1st.
              */
             size_t remove_force(function<void(vector<pair<void*, void*>> const&)> const&);
+            void remove_reset();
             template<typename Tag> void clear();
             // Debugging aid, only prints in debug build
             string info(void const*) const;
@@ -971,7 +945,7 @@ namespace voltdb {
                 ~iterator_type();
                 // NOTE: we need to expose these 2 APIs bc. of IteratorObserver
                 container_type storage() const noexcept;
-                operator position_type() const noexcept;
+                boost::optional<position_type> to_position() const noexcept;
                 static iterator_type begin(container_type);
                 bool operator==(iterator_type const&) const noexcept;
                 inline bool operator!=(iterator_type const& o) const noexcept {
@@ -1001,7 +975,7 @@ namespace voltdb {
                 using container_type = typename super::container_type;
                 using value_type = typename super::value_type;
                 bool m_empty;                          // is allocator empty at instance construction time?
-                position_type const m_txnBoundary;
+                boost::optional<position_type> const m_txnBoundary;
                 id_type m_chunkId;
                 void refresh();
             public:
@@ -1012,8 +986,8 @@ namespace voltdb {
                 elastic_iterator& operator++();
                 elastic_iterator operator++(int);
                 value_type operator*();
-                position_type const& txnBoundary() const noexcept;
-                using super::operator position_type;
+                boost::optional<position_type> const& txnBoundary() const noexcept;
+                using super::to_position;
             };
 
             /**
