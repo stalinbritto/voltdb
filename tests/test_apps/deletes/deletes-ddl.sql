@@ -32,6 +32,35 @@ CREATE INDEX treeBigTableFullnameTs ON big_table (fullname, ts);
 -- that would have to be serially scanned on deletes.
 CREATE INDEX treeBigTableConcatNonNullStrings ON big_table (text1 || fullname || sig || addr1 || addr2);
 
+CREATE VIEW view1(fullname, deceased,weight,seconds,text2,addr1, total)
+    AS SELECT fullname, deceased,weight,seconds,text2,addr1, COUNT(*)
+    FROM big_table
+    GROUP BY fullname, deceased,weight,seconds,text2,addr1;
+
+CREATE VIEW view2(fullname, deceased, weight, seconds, sig, total)
+    AS SELECT fullname, deceased, weight, seconds, sig, COUNT(*)
+    FROM big_table
+    GROUP BY fullname, deceased, weight, seconds, sig;
+
+CREATE VIEW view3(fullname, deceased, sig, addr3, seconds, text1, addr1, text2, total)
+    AS SELECT fullname, deceased, sig, addr3, seconds, text1, addr1, text2, COUNT(*)
+    FROM big_table
+    GROUP BY fullname, deceased, sig, addr3, seconds, text1, addr1, text2;
+
+CREATE VIEW view4(fullname, deceased, sig, addr3, seconds, addr1, text2, age, total)
+    AS SELECT fullname, deceased, sig, addr3, seconds, addr1, text2, age, COUNT(*)
+    FROM big_table
+    GROUP BY fullname, deceased, sig, addr3, seconds, addr1, text2, age;
+
+CREATE VIEW view5(fullname, deceased, sig, addr3, seconds, addr1, text2, company, total)
+    AS SELECT fullname, deceased, sig, addr3, seconds, addr1, text2, company, COUNT(*)
+    FROM big_table
+    GROUP BY fullname, deceased, sig, addr3, seconds, addr1, text2, company;
+
+CREATE VIEW view6(fullname, deceased, total)
+    AS SELECT fullname, deceased, COUNT(*)
+    FROM big_table
+    GROUP BY fullname, deceased;
 
 END_OF_BATCH
 

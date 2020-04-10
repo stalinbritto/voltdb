@@ -623,7 +623,7 @@ public class DeletesClient
         // Define parameters and pull from command line
         AppHelper apph = new AppHelper(DeletesClient.class.getCanonicalName())
             .add("duration", "run_duration_in_seconds", "Benchmark duration, in seconds.", 240)
-            .add("average-batch-size", "average_batch_size", "Average batch size", 5000)
+            .add("average-batch-size", "average_batch_size", "Average batch size", 150000)
             .add("batches", "num_batches_to_keep", "Number of batches to keep", 5)
             .add("cleanup-freq", "cleanup_frequency", "Cleanup frequency, in seconds.", 6)
             .add("snapshot-freq", "cycles_between_snapshots", "Snapshot frequency, in seconds. -1 to turn off snapshots", -1)
