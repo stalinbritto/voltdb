@@ -1167,4 +1167,3 @@ namespace voltdb {
         }
     };
 }
-

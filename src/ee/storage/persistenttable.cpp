@@ -147,9 +147,6 @@ void PersistentTable::initializeWithColumns(TupleSchema* schema,
     m_tuplesPerChunk = m_tableAllocationSize / m_tupleLength;
     if (m_isLoggingEnabled) {
         auto const printer = [this](void const* p){
-//            TableTuple tuple(this->m_schema);
-//            tuple.move(const_cast<void*>(p));
-//            return tuple.debug(this->name());
             return "";
         };
         allocator().enableLogging(printer);
@@ -158,6 +155,17 @@ void PersistentTable::initializeWithColumns(TupleSchema* schema,
 
 PersistentTable::~PersistentTable() {
     VOLT_DEBUG("Deleting TABLE %s as %s", m_name.c_str(), m_isReplicated?"REPLICATED":"PARTITIONED");
+
+    stopSnapshot(true);
+
+        // delete all tuples to free strings
+        TableIterator ti = iterator();
+        TableTuple tuple(m_schema);
+        while (ti.next(tuple)) {
+            tuple.freeObjectColumns();
+            tuple.setActiveFalse();
+        }
+        m_dataStorage.reset(NULL);
 
     // note this class has ownership of the views, even if they
     // were allocated by VoltDBEngine
@@ -239,6 +247,10 @@ void PersistentTable::truncateTableUndo(TableCatalogDelegate* tcd,
     if (originalTable->m_tableStreamer != NULL) {
         // Elastic Index may complete when undo Truncate
         unsetTableForStreamIndexing();
+    }
+
+    if (m_shadowStream != nullptr) {
+        m_shadowStream->moveWrapperTo(originalTable->m_shadowStream);
     }
 
     VoltDBEngine* engine = ExecutorContext::getEngine();
@@ -398,6 +410,10 @@ void PersistentTable::truncateTable(VoltDBEngine* engine, bool replicatedTable, 
         vassert(! emptyTable->hasPurgeFragment());
         boost::shared_ptr<ExecutorVector> evPtr = getPurgeExecutorVector();
         emptyTable->swapPurgeExecutorVector(evPtr);
+    }
+
+    if (m_shadowStream != nullptr) {
+        m_shadowStream->moveWrapperTo(emptyTable->m_shadowStream);
     }
 
     engine->rebuildTableCollections(replicatedTable, false);
@@ -1841,9 +1857,7 @@ int64_t PersistentTable::validatePartitioning(TheHashinator* hashinator, int32_t
 
 void PersistentTable::activateSnapshot(TableStreamType streamType) {
    if (streamType == TABLE_STREAM_SNAPSHOT) {
-       if (m_snapIt.get() != nullptr) {
-           stopSnapshot(true);
-       }
+       stopSnapshot(true);
        m_snapIt = allocator().template freeze<storage::truth>();
        m_snapshotStarted = true;
        std::ostringstream buffer;
@@ -1855,7 +1869,7 @@ void PersistentTable::activateSnapshot(TableStreamType streamType) {
 }
 
 void PersistentTable::stopSnapshot(bool activated) {
-   if (activated || (m_snapIt.get() != nullptr && m_snapIt->drained())) {
+   if (m_snapIt.get() != nullptr && (activated || m_snapIt->drained())) {
       if (isReplicatedTable()) {
          ScopedReplicatedResourceLock scopedLock;
          ExecuteWithMpMemory useMpMemory;
