@@ -285,8 +285,10 @@ public class SystemProcedureCatalog {
     // Cache VoltSysemProcedure by name which should be processed
     // when TaskLogs are replayed during rejoining.
     static ImmutableSet<String> s_allowableSysprocsInTaskLog;
-    static {                                                                                            // SP     RO     Every  Param ParamType           PRO    killDR replica-ok durable allowedInShutdown transactional restartable
-        // special-case replica acceptability by DR version
+    static {
+        // SinglePar  ReadOnly  EverySite  ParParam  ParamType
+        // Commercial  KillDR  ReplicaOK  Durability
+        // AllowedInShutdown  Transactional  Restartability
         final ImmutableMap.Builder<String, Config> builder = ImmutableMap.builder();
         builder.put("@AdHoc_RW_MP",
                 new Config("org.voltdb.sysprocs.AdHoc_RW_MP",
@@ -672,7 +674,22 @@ public class SystemProcedureCatalog {
                         false, false, false,  0, VoltType.INVALID,
                         true, false, true, Durability.NOT_DURABLE,
                         false, true, Restartability.RESTARTABLE));
-
+        // Added for k8s operator support.
+        builder.put("@OpStopNode",
+                new Config("org.voltdb.sysprocs.OpStopNode",
+                        true, false, false, 0, VoltType.INVALID,
+                        false, false, true, Durability.NOT_APPLICABLE,
+                        false, false, Restartability.NOT_APPLICABLE));
+        builder.put("@OpShutdown",
+                new Config("org.voltdb.sysprocs.OpShutdown",
+                        false, false, false, 0, VoltType.INVALID,
+                        false, false, true, Durability.NOT_APPLICABLE,
+                        true, false, Restartability.NOT_APPLICABLE));
+        builder.put("@OpShutdownWait",
+                new Config("org.voltdb.sysprocs.OpShutdownWait",
+                        false, false, false, 0, VoltType.INVALID,
+                        false, false, true, Durability.NOT_APPLICABLE,
+                        true, false, Restartability.NOT_APPLICABLE));
         listing = builder.build();
     }
 
