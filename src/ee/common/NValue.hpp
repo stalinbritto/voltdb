@@ -261,6 +261,8 @@ class NValue {
         argument indicates whether the value is stored directly inline
         in the tupleStorage. **/
     static NValue initFromTupleStorage(const void *storage, ValueType type, bool isInlined, bool isVolatile);
+    static NValue initFromTupleStorageWithLengthCheck(const void *storage, ValueType type, bool isInlined,
+            bool isVolatile, int32_t maxLength, bool isInBytes);
 
     /** Serialize this NValue's value into the storage area provided.
         This will require an object allocation in two cases.
@@ -2808,6 +2810,51 @@ inline NValue NValue::initFromTupleStorage(const void *storage, ValueType type, 
                     getTypeName(type).c_str());
     }
     return retval;
+}
+
+inline NValue NValue::initFromTupleStorageWithLengthCheck(const void *storage, ValueType type,
+        bool isInlined, bool isVolatile, int32_t maxLength, bool isInBytes) {
+    switch (type) {
+        case ValueType::tVARCHAR:
+        case ValueType::tVARBINARY:
+        case ValueType::tGEOGRAPHY:
+            {
+                NValue retval(type);
+                retval.setVolatile(isVolatile);
+                //Potentially non-inlined type requires special handling
+                if (isInlined) {
+                    //If it is inlined the storage area contains the actual data so copy a reference
+                    //to the storage area
+                    vassert(type != ValueType::tGEOGRAPHY);
+                    const char* inline_data = reinterpret_cast<const char*>(storage);
+                    *reinterpret_cast<const char**>(retval.m_data) = inline_data;
+                    retval.setSourceInlined(true);
+                    /**
+                     * If a string is inlined in its storage location there will be no pointer to
+                     * check for NULL. The length prefix value must be used instead.
+                     */
+                    if ((inline_data[0] & OBJECT_NULL_BIT) != 0) {
+                        retval.tagAsNull();
+                    }
+                    return retval;
+                }
+
+                // If it isn't inlined the storage area contains a pointer to the
+                // StringRef object containing the string's memory
+                StringRef* sref = *reinterpret_cast<StringRef**>(const_cast<void*>(storage));
+                // If the StringRef pointer is null, that's because this
+                // was a null value; otherwise get the right char* from the StringRef
+                if (sref == NULL) {
+                    retval.setNullObjectPointer();
+                } else {
+                    checkTooWideForVariableLengthType(type, sref->getObjectValue(), sref->getObjectLength(), maxLength, isInBytes);
+                    retval.setObjectPointer(sref);
+                }
+                return retval;
+            }
+        default:
+            return initFromTupleStorage(storage, type, isInlined, isVolatile);
+    }
 }
 
 template<class POOL>

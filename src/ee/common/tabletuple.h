@@ -397,7 +397,12 @@ public:
         const bool isInlined = columnInfo->inlined;
         const bool isVolatile = inferVolatility(columnInfo);
 
+#ifdef NDEBUG
         return NValue::initFromTupleStorage(dataPtr, columnType, isInlined, isVolatile);
+#else
+        return NValue::initFromTupleStorageWithLengthCheck(dataPtr, columnType, isInlined,
+                isVolatile, static_cast<int32_t>(columnInfo->length), columnInfo->inBytes);
+#endif
     }
 
     /** Like the above method but for hidden columns. */
