@@ -263,7 +263,9 @@ void* tuple_memcpy(void* dst, void const* src) {
     return memcpy(dst, src, TupleSize);
 }
 
-void testBatchDeleteScenarios(bool removeFromTail, int startRemoveRow, int endRemoveRow, int startSnapshotRow, int endSnapshotRow) {
+void testBatchDeleteScenarios(bool removeFromTail, bool snapshot,
+                              int startRemoveRow, int endRemoveRow,
+                              int startSnapshotRow, int endSnapshotRow) {
     unordered_set<void*> rowTracker(NumTuples*2);
     // test batch removal when frozen, then thaw.
     auto const cleaner = [&rowTracker] (void const* p) {
@@ -283,6 +285,9 @@ void testBatchDeleteScenarios(bool removeFromTail, int startRemoveRow, int endRe
         return fresh;
     };
 
+    if (!snapshot) {
+        startSnapshotRow = endSnapshotRow = 0;
+    }
     cout << "\n";
     cout.flush();
     for (int removeRowCountPass1 = startRemoveRow; removeRowCountPass1 <= endRemoveRow; removeRowCountPass1++) {
@@ -293,6 +298,7 @@ void testBatchDeleteScenarios(bool removeFromTail, int startRemoveRow, int endRe
         for (int testloop = startSnapshotRow; testloop <= endSnapshotRow; testloop++) {
             {
                 using Alloc = HookedCompactingChunks<TxnPreHook<NonCompactingChunks<EagerNonCompactingChunk>, HistoryRetainTrait<gc_policy::always>>>;
+                using SnapshotIterator = IterableTableTupleChunks<Alloc, truth>::hooked_iterator;
                 using Gen = StringGen<TupleSize>;
                 Gen gen;
                 finalize_verifier verifier{NumTuples};
@@ -322,14 +328,17 @@ void testBatchDeleteScenarios(bool removeFromTail, int startRemoveRow, int endRe
                     addresses[i] = allocatedAddr;
                     rowTracker.insert(allocatedAddr).second;
                 }
-                auto iter = alloc.template freeze<truth>();
-                for (int preStream = 0; preStream < testloop; preStream++) {
-                    if (iter->drained()) {
-                        cout << "Premature snapshot drain state before batch delete\n";
-                        throw std::exception();
+                std::shared_ptr<SnapshotIterator> iter;
+                if (snapshot) {
+                    iter = alloc.template freeze<truth>();
+                    for (int preStream = 0; preStream < testloop; preStream++) {
+                        if (iter->drained()) {
+                            cout << "Premature snapshot drain state before batch delete\n";
+                            throw std::exception();
+                        }
+                        verifier(**iter);
+                        ++*iter;
                     }
-                    verifier(**iter);
-                    ++*iter;
                 }
                 alloc.remove_reserve(removeRowCountPass1);
                 if (removeFromTail) {
@@ -367,26 +376,29 @@ void testBatchDeleteScenarios(bool removeFromTail, int startRemoveRow, int endRe
                     cout << "Unexpected remove batch count from remove_force\n";
                     throw std::exception();
                 }
-                for (i = testloop; i < NumTuples; i++) {
-                    if (iter->drained()) {
-                        cout << "Premature snapshot drain state after batch delete\n";
+                if (snapshot) {
+                    for (i = testloop; i < NumTuples; i++) {
+                        if (iter->drained()) {
+                            cout << "Premature snapshot drain state after batch delete\n";
+                            throw std::exception();
+                        }
+                        verifier(**iter);
+                        ++*iter;
+                    }
+                    if (!iter->drained()) {
+                        cout << "Snapshot should have been drained\n";
                         throw std::exception();
                     }
-                    verifier(**iter);
-                    ++*iter;
-                }
-                if (!iter->drained()) {
-                    cout << "Snapshot should have been drained\n";
-                    throw std::exception();
-                }
 
-                alloc.template thaw<truth>();
-                // At thaw time, those copies in the batch should be removed
-                // (and finalized before being deallocated), since snapshot iterator needs them
-                for (i = 0; i < NumTuples; i++) {
-                    if (verifier.seen().find(i) == verifier.seen().cend()) {
-                        cout << "Row " << i << " was not found in the snapshot\n";
-                        throw std::exception();
+                    alloc.template thaw<truth>();
+
+                    // At thaw time, those copies in the batch should be removed
+                    // (and finalized before being deallocated), since snapshot iterator needs them
+                    for (i = 0; i < NumTuples; i++) {
+                        if (verifier.seen().find(i) == verifier.seen().cend()) {
+                            cout << "Row " << i << " was not found in the snapshot\n";
+                            throw std::exception();
+                        }
                     }
                 }
 
@@ -414,7 +426,7 @@ void testBatchDeleteScenarios(bool removeFromTail, int startRemoveRow, int endRe
 
 TEST_F(TableTupleAllocatorTest, TestNonOverlappingTailBatchRemove) {
     try {
-        testBatchDeleteScenarios(true, 256, 256, 0, 511);
+        testBatchDeleteScenarios(true, true, 256, 256, 0, 511);
     }
     catch (std::exception e) {
         FAIL("Unexpected Termination");
@@ -423,7 +435,7 @@ TEST_F(TableTupleAllocatorTest, TestNonOverlappingTailBatchRemove) {
 
 TEST_F(TableTupleAllocatorTest, TestOverlappedBatchRemove) {
     try {
-        testBatchDeleteScenarios(true, 257, 257, 0, 0);
+        testBatchDeleteScenarios(true, true, 257, 257, 0, 0);
     }
     catch (std::exception e) {
         FAIL("Unexpected Termination");
@@ -432,7 +444,7 @@ TEST_F(TableTupleAllocatorTest, TestOverlappedBatchRemove) {
 
 TEST_F(TableTupleAllocatorTest, TestSingleChunkBatchRemove) {
     try {
-        testBatchDeleteScenarios(false, 48, 48, 0, 511);
+        testBatchDeleteScenarios(false, true, 48, 48, 0, 511);
     }
     catch (std::exception e) {
         FAIL("Unexpected Termination");
@@ -441,7 +453,7 @@ TEST_F(TableTupleAllocatorTest, TestSingleChunkBatchRemove) {
 
 TEST_F(TableTupleAllocatorTest, TestMultiChunkBatchRemove) {
     try {
-        testBatchDeleteScenarios(false, 49, 49, 0, 0);
+        testBatchDeleteScenarios(false, true, 49, 49, 0, 0);
     }
     catch (std::exception e) {
         FAIL("Unexpected Termination");
