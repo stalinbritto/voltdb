@@ -138,6 +138,7 @@ void PersistentTable::initializeWithColumns(TupleSchema* schema,
             source.move(const_cast<void*>(dest));
             freshCopy.resetHeader();
             freshCopy.copyForPersistentInsert(source);
+            increaseStringMemCount(freshCopy.getNonInlinedMemorySizeForPersistentTable());
             return fresh;
         };
         m_dataStorage.reset(new Alloc{tupleSize, {cleaner, copier}});
