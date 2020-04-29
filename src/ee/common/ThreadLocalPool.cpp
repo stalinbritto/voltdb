@@ -478,6 +478,58 @@ void ThreadLocalPool::freeExactSizedObject(std::size_t sz, void* object) {
     iter->second.get()->free(object);
 }
 
+#ifdef VOLT_POOL_CHECKING
+void ThreadLocalPool::verifyExactSizedObject(std::size_t sz, void* object, bool usingMpMemory) {
+    int32_t engineId = usingMpMemory ? SynchronizedThreadLock::s_mpMemoryPartitionId : getEnginePartitionId();
+    VOLT_DEBUG("Accessing %p of size %lu on engine %d, thread %d", object, sz,
+            engineId, getThreadPartitionId());
+    s_sharedMemoryMutex.lock();
+    SizeBucketMap_t& mapBySize = s_allocations[engineId];
+    s_sharedMemoryMutex.unlock();
+    auto const mapForAdd = mapBySize.find(sz);
+    if (mapForAdd == mapBySize.cend()) {
+        VOLT_ERROR("Accessing missing data pointer %p in context thread (partition %d)",
+                object, engineId);
+        VOLT_ERROR_STACK();
+        if (engineId == SynchronizedThreadLock::s_mpMemoryPartitionId) {
+            StackTrace* st = getStackTraceFor(0, sz, object);
+            if (st) {
+                VOLT_ERROR("Allocated data partition %d:", 0);
+                st->printLocalTrace();
+            }
+        } else {
+            StackTrace* st = getStackTraceFor(SynchronizedThreadLock::s_mpMemoryPartitionId, sz, object);
+            if (st) {
+                VOLT_ERROR("Allocated data partition %d:", SynchronizedThreadLock::s_mpMemoryPartitionId);
+                st->printLocalTrace();
+            }
+        }
+        throwFatalException("Attempt to use exact-sized object of unknown size");
+    } else {
+        auto const alloc = mapForAdd->second.find(object);
+        if (alloc == mapForAdd->second.cend()) {
+            VOLT_ERROR("Accessing missing data pointer %p in context thread (partition %d)",
+                    object, engineId);
+            VOLT_ERROR_STACK();
+            if (engineId == SynchronizedThreadLock::s_mpMemoryPartitionId) {
+                StackTrace* st = getStackTraceFor(0, sz, object);
+                if (st) {
+                    VOLT_ERROR("Allocated data partition %d:", 0);
+                    st->printLocalTrace();
+                }
+            } else {
+                StackTrace* st = getStackTraceFor(SynchronizedThreadLock::s_mpMemoryPartitionId, sz, object);
+                if (st) {
+                    VOLT_ERROR("Allocated data partition %d:", SynchronizedThreadLock::s_mpMemoryPartitionId);
+                    st->printLocalTrace();
+                }
+            }
+            throwFatalException("Attempt to use an unknown exact-sized object");
+        }
+    }
+}
+#endif
+
 // internal non-member helper function for calcuate Pool allocation Size
 std::size_t getPoolAllocationSize_internal(size_t *bytes, CompactingStringStorage *poolMap) {
     // For relocatable objects, each object-size-specific pool

@@ -19,6 +19,7 @@
 
 #include "Pool.hpp"
 #include "ThreadLocalPool.h"
+#include "SynchronizedThreadLock.h"
 
 #include "storage/LargeTempTableBlock.h"
 
@@ -86,12 +87,21 @@ int32_t StringRef::getAllocatedSizeInTempStorage() const {
 // StringRef class so that it can call a proper accessor method.
 // An earlier implementation taking this approach proved hard to follow.
 inline StringRef::StringRef(int32_t sz):
-    m_stringPtr(reinterpret_cast<char*>(ThreadLocalPool::allocateRelocatable(&m_stringPtr, sz))) { }
+    m_stringPtr(reinterpret_cast<char*>(ThreadLocalPool::allocateRelocatable(&m_stringPtr, sz)))
+#ifdef VOLT_POOL_CHECKING
+        , m_usesTempPool(false), m_usesMpMemory(SynchronizedThreadLock::isInMpEngineContext())
+#endif
+{ }
 
 // Temporary strings are allocated in one piece with their referring
 // StringRefs -- the string data starts just past the StringRef object,
 // which by the rules of object pointer math is just "this+1".
-inline StringRef::StringRef(Pool* unused, int32_t sz) : m_stringPtr(reinterpret_cast<char*>(this+1)) {
+inline StringRef::StringRef(Pool* unused, int32_t sz) : m_stringPtr(reinterpret_cast<char*>(this+1))
+#ifdef VOLT_POOL_CHECKING
+        , m_usesTempPool(true), m_usesMpMemory(false)
+
+#endif
+{
     asSizedObject(m_stringPtr)->m_size = sz;
 }
 

@@ -821,7 +821,7 @@ void testHookedCompactingChunksBatchRemove_multi2() {
     alloc.template freeze<truth>();
     i = 0;
     remove_multiple(alloc, accumulate(addresses.cbegin(), addresses.cend(),     // remove every other
-                varray<NumTuples / 2>{}, [&i](varray<NumTuples / 2>& acc, void const* p) {
+                varray<NumTuples / 2>{{}}, [&i](varray<NumTuples / 2>& acc, void const* p) {
                     if (i % 2 == 0) {
                         acc[i / 2] = p;
                     }
