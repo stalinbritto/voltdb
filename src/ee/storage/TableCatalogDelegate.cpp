@@ -414,6 +414,10 @@ Table* TableCatalogDelegate::constructTableFromCatalog(catalog::Database const& 
     }
     VOLT_DEBUG("Creating %s %s as %s, type: %d", m_materialized?"VIEW":"TABLE",
                tableName.c_str(), isReplicated?"REPLICATED":"PARTITIONED", catalogTable.tableType());
+    std::stringstream message;
+    message << " Create " << tableName.c_str() << (m_materialized?" VIEW":" TABLE") << (isReplicated?" REPLICATED":" PARTITIONED") << std::endl;
+    string msg = message.str();
+    LogManager::getThreadLogger(LOGGERID_HOST)->log(voltdb::LOGLEVEL_WARN, &msg);
     Table* table = TableFactory::getPersistentTable(
             databaseId, tableName.c_str(), schema, columnNames, m_signatureHash,
             m_materialized, partitionColumnIndex, m_tableType, tableAllocationTargetSize,

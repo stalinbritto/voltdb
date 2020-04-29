@@ -1827,9 +1827,20 @@ bool PersistentTable::stopSnapshot(TableStreamType streamType, bool forceDeactiv
                 if (isReplicatedTable()) {
                     ScopedReplicatedResourceLock scopedLock;
                     ExecuteWithMpMemory useMpMemory;
+                    std::stringstream message;
+                    message << " Stop snapshot1 " << name().c_str() << (m_isMaterialized?" VIEW":" TABLE") <<
+                        (isReplicatedTable()?" REPLICATED":" PARTITIONED") << std::endl;
+                    string msg = message.str();
+                    LogManager::getThreadLogger(LOGGERID_HOST)->log(voltdb::LOGLEVEL_WARN, &msg);
                     allocator().template thaw<storage::truth>();
                     m_snapIt.reset();
                 } else {
+                    std::stringstream message;
+                    message << " Stop snapshot2 " << name().c_str() << (m_isMaterialized?" VIEW":" TABLE") <<
+                        (isReplicatedTable()?" REPLICATED":" PARTITIONED") << std::endl;
+                    string msg = message.str();
+                    LogManager::getThreadLogger(LOGGERID_HOST)->log(voltdb::LOGLEVEL_WARN, &msg);
+
                     allocator().template thaw<storage::truth>();
                     m_snapIt.reset();
                 }
