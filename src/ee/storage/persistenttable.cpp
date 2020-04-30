@@ -1832,6 +1832,7 @@ bool PersistentTable::stopSnapshot(TableStreamType streamType, bool forceDeactiv
                         (isReplicatedTable()?" REPLICATED":" PARTITIONED") << std::endl;
                     string msg = message.str();
                     LogManager::getThreadLogger(LOGGERID_HOST)->log(voltdb::LOGLEVEL_WARN, &msg);
+                    checkContext("stop snapshot 1");
                     allocator().template thaw<storage::truth>();
                     m_snapIt.reset();
                 } else {
@@ -1840,7 +1841,7 @@ bool PersistentTable::stopSnapshot(TableStreamType streamType, bool forceDeactiv
                         (isReplicatedTable()?" REPLICATED":" PARTITIONED") << std::endl;
                     string msg = message.str();
                     LogManager::getThreadLogger(LOGGERID_HOST)->log(voltdb::LOGLEVEL_WARN, &msg);
-
+                    checkContext("stop snapshot 2");
                     allocator().template thaw<storage::truth>();
                     m_snapIt.reset();
                 }
