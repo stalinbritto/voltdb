@@ -113,6 +113,13 @@ public:
      */
     static void freeExactSizedObject(std::size_t, void* object);
 
+    /**
+     * Confirm that an object belongs to this pool
+     */
+#ifdef VOLT_POOL_CHECKING
+    static void verifyExactSizedObject(std::size_t sz, void* object, bool usingMpMemory);
+#endif
+
     static std::size_t getPoolAllocationSize();
 
     static void setPartitionIds(int32_t partitionId);
@@ -200,4 +207,3 @@ private:
     #endif
 };
 }
-
