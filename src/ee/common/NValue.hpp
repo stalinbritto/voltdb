@@ -890,11 +890,25 @@ private:
     }
 
     const StringRef* getObjectPointer() const {
-       return *reinterpret_cast<const StringRef* const*>(m_data);
+        const StringRef* rslt = *reinterpret_cast<const StringRef* const*>(m_data);
+#ifdef VOLT_POOL_CHECKING
+        if (!rslt->m_usesTempPool) {
+            ThreadLocalPool::verifyExactSizedObject(sizeof(StringRef),
+                    const_cast<void*>(reinterpret_cast<const void*>(rslt)), rslt->m_usesMpMemory);
+        }
+#endif
+        return rslt;
     }
 
     StringRef* getObjectPointer() {
-       return *reinterpret_cast<StringRef**>(m_data);
+        StringRef* rslt = *reinterpret_cast<StringRef**>(m_data);
+#ifdef VOLT_POOL_CHECKING
+        if (!rslt->m_usesTempPool) {
+            ThreadLocalPool::verifyExactSizedObject(sizeof(StringRef),
+                    reinterpret_cast<void*>(rslt), rslt->m_usesMpMemory);
+        }
+#endif
+       return rslt;
     }
 
     const char* getObjectValue_withoutNull() const {
@@ -3979,4 +3993,3 @@ namespace std {
         }
     };
 }
-

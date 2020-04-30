@@ -41,6 +41,12 @@ class StringRef {
     void operator delete(void* object);
 
     char* m_stringPtr;
+#ifdef VOLT_POOL_CHECKING
+public:
+    bool m_usesTempPool;
+    bool m_usesMpMemory;
+#endif
+
 public:
     /// Utility method to extract the amount of memory that was
     /// used by non-inline storage for this string/varbinary.
@@ -94,4 +100,3 @@ public:
 };
 
 } // namespace voltdb
-
