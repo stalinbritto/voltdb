@@ -668,6 +668,7 @@ DISTRIBUTION
             <include name="kafka/**"/>
             <include name="lib/**" />
             <include name="draingen" />
+            <include name="snapshotcomparer.sh" />
         </fileset>
     </copy>
 
