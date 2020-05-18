@@ -2107,8 +2107,10 @@ public class SynchronizedStatesManager {
                 // lost the full connection. some test cases do this...
                 // means zk shutdown without the elector being shutdown.
                 // ignore.
+                ssmLog.error(m_stateMachineRoot + ": got exception XXX ", e);
             } catch (KeeperException.NoNodeException e) {
                 // FIXME: need to investigate why this happens on multinode shutdown
+                ssmLog.error(m_stateMachineRoot + ": got exception XXX ", e);
             }
             return null;
         }
