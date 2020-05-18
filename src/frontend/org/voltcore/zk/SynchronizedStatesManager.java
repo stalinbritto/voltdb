@@ -683,10 +683,8 @@ public class SynchronizedStatesManager {
                     m_zk.delete(m_myParticipantPath, -1);
                 }
                 catch (KeeperException | InterruptedException e) {
-                    if (m_log.isDebugEnabled()) {
-                        m_log.debug(m_stateMachineId + ": Received " + e.getClass().getSimpleName()
-                                + " in disableMembership");
-                    }
+                    m_log.error(m_stateMachineId + ": XXXReceived " + e.getClass().getSimpleName()
+                            + " in disableMembership", e);
                 }
                 try {
                     if (m_ourDistributedLockName != null) {
@@ -698,10 +696,8 @@ public class SynchronizedStatesManager {
                     }
                 }
                 catch (KeeperException | InterruptedException e) {
-                    if (m_log.isDebugEnabled()) {
-                        m_log.debug(m_stateMachineId + ": Received " + e.getClass().getSimpleName()
-                                + " in disableMembership");
-                    }
+                    m_log.error(m_stateMachineId + ": XXXReceived " + e.getClass().getSimpleName()
+                            + " in disableMembership", e);
                 }
                 m_initializationCompleted = false;
             }
