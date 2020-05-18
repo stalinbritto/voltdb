@@ -683,7 +683,7 @@ public class SynchronizedStatesManager {
                     m_zk.delete(m_myParticipantPath, -1);
                 }
                 catch (KeeperException | InterruptedException e) {
-                    m_log.error(m_stateMachineId + ": XXXReceived " + e.getClass().getSimpleName()
+                    m_log.info(m_stateMachineId + ": XXXReceived " + e.getClass().getSimpleName()
                             + " in disableMembership", e);
                 }
                 try {
@@ -696,7 +696,7 @@ public class SynchronizedStatesManager {
                     }
                 }
                 catch (KeeperException | InterruptedException e) {
-                    m_log.error(m_stateMachineId + ": XXXReceived " + e.getClass().getSimpleName()
+                    m_log.info(m_stateMachineId + ": XXXReceived " + e.getClass().getSimpleName()
                             + " in disableMembership", e);
                 }
                 m_initializationCompleted = false;
@@ -2103,10 +2103,10 @@ public class SynchronizedStatesManager {
                 // lost the full connection. some test cases do this...
                 // means zk shutdown without the elector being shutdown.
                 // ignore.
-                ssmLog.error(m_stateMachineRoot + ": got exception XXX ", e);
+                ssmLog.info(m_stateMachineRoot + ": got exception XXX ", e);
             } catch (KeeperException.NoNodeException e) {
                 // FIXME: need to investigate why this happens on multinode shutdown
-                ssmLog.error(m_stateMachineRoot + ": got exception XXX ", e);
+                ssmLog.info(m_stateMachineRoot + ": got exception XXX ", e);
             }
             return null;
         }
