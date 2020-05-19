@@ -379,8 +379,15 @@ public class AsyncExportClient
 
                 log_migrating_counts("EXPORT_PARTITIONED_TABLE_JDBC");
                 log_migrating_counts("EXPORT_REPLICATED_TABLE_JDBC");
-                log_migrating_counts("EXPORT_PARTITIONED_TABLE_KAFKA");
                 log_migrating_counts("EXPORT_REPLICATED_TABLE_KAFKA");
+
+                VoltTable[] results = log_migrating_counts("EXPORT_PARTITIONED_TABLE_KAFKA");
+                if (results != null && results[1].asScalarLong() > 0) {
+                    log.info("triggering one more  migrate");
+                    trigger_migrate(0);
+                    Thread.sleep(7500);
+                    log_migrating_counts("EXPORT_PARTITIONED_TABLE_JDBC");
+                }
             }
 
             shutdown.compareAndSet(false, true);
@@ -499,7 +506,7 @@ public class AsyncExportClient
         }
     }
 
-    private static void log_migrating_counts(String table) {
+    private static VoltTable[] log_migrating_counts(String table) {
         try {
             VoltTable[] results = clientRef.get().callProcedure("@AdHoc",
                                                                 "SELECT COUNT(*) FROM " + table + " WHERE MIGRATING; " +
@@ -514,6 +521,7 @@ public class AsyncExportClient
                      ": total: " + total +
                      ", migrating: " + migrating +
                      ", not migrating: " + not_migrating);
+            return results;
         }
         catch (Exception e) {
             // log it and otherwise ignore it.  it's not fatal to fail if the
@@ -521,6 +529,7 @@ public class AsyncExportClient
             log.fatal("log_migrating_counts exception: " + e);
             e.printStackTrace();
         }
+        return null;
     }
 
     private static void trigger_migrate(int time_window) {
