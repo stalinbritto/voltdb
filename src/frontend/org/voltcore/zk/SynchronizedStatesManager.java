@@ -683,8 +683,10 @@ public class SynchronizedStatesManager {
                     m_zk.delete(m_myParticipantPath, -1);
                 }
                 catch (KeeperException | InterruptedException e) {
+                    /*
                     m_log.info(m_stateMachineId + ": XXXReceived " + e.getClass().getSimpleName()
                             + " in disableMembership", e);
+                    */
                 }
                 try {
                     if (m_ourDistributedLockName != null) {
